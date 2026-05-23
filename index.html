@@ -14804,244 +14804,231 @@ function _updateChipStates(){
 </div>
 
 
-<!-- ═══════════════════════════════════════════════════ -->
-<!--  STENCIL OMS – API BRIDGE (injected)               -->
-<!--  Connects HTML frontend to MERN backend             -->
-<!-- ═══════════════════════════════════════════════════ -->
+<!-- STENCIL OMS – API BRIDGE v2 -->
 <script>
 (function(){
   'use strict';
   const _API     = 'https://web-production-3ead93.up.railway.app';
   const _JWT_KEY = 'stencil_jwt_v1';
 
+  /* ── allow initApp only after API auth completes ── */
+  let _authReady = false;
+
+  /* ── Override initApp FIRST, before DOMContentLoaded fires ──
+     The restoreSession IIFE registers go() → initApp() on DOMContentLoaded.
+     We override initApp here so when go() calls it, we intercept. */
+  const _origInitApp = window.initApp;
+  window.initApp = function(){
+    if(!_authReady){
+      /* Not authenticated via API yet — show login and bail */
+      _showLogin();
+      return;
+    }
+    _origInitApp.call(this);
+  };
+
   /* ── low-level fetch helper ── */
   async function _req(method, path, body){
     const tok = localStorage.getItem(_JWT_KEY);
     const r = await fetch(_API + path, {
       method,
-      headers: {
+      headers:{
         'Content-Type':'application/json',
         ...(tok ? {'Authorization':'Bearer '+tok} : {})
       },
-      ...(body ? {body: JSON.stringify(body)} : {})
+      ...(body ? {body:JSON.stringify(body)} : {})
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.message || 'Error '+r.status);
     return j;
   }
 
-  /* ── map backend order → HTML order object ── */
+  /* ── map backend order → HTML order ── */
   function _toLocal(o){
     return {
-      id:           o.seqId   || 0,
-      _id:          o._id,
-      groupDonId:   o.groupDonId || null,
-      customer:     o.customer   || '',
-      product:      o.product    || '',
-      orderedCode:  o.orderedCode|| '',
-      vendor:       o.vendor     || '',
-      qty:          o.qty        || 0,
-      unit:         o.unit       || 'pcs',
-      orderDate:    o.orderDate  ? o.orderDate.split('T')[0] : '',
-      eta:          o.eta        || '',
-      status:       o.status     || 'Order',
-      lr:           o.lr         || '',
-      lrDate:       o.lrDate     || '',
-      transporter:  o.transporter|| '',
-      purchaseRate: o.purchaseRate|| 0,
-      sellingRate:  o.sellingRate || 0,
-      notes:        o.notes      || '',
-      poNum:        o.poNum      || '',
-      vendorPoNum:  o.vendorPoNum|| '',
-      grn:          o.grn        || {},
-      billing:      o.billing    || {},
-      delivery:     o.delivery   || {},
-      etaHistory:   o.etaHistory || [],
-      trail:        o.trail      || [],
-      createdBy:    o.createdBy  || '',
-      isStockOrder: o.isStockOrder|| false,
+      id:o.seqId||0, _id:o._id,
+      groupDonId:o.groupDonId||null,
+      customer:o.customer||'', product:o.product||'',
+      orderedCode:o.orderedCode||'', vendor:o.vendor||'',
+      qty:o.qty||0, unit:o.unit||'pcs',
+      orderDate:o.orderDate?o.orderDate.split('T')[0]:'',
+      eta:o.eta||'', status:o.status||'Order',
+      lr:o.lr||'', lrDate:o.lrDate||'',
+      transporter:o.transporter||'',
+      purchaseRate:o.purchaseRate||0, sellingRate:o.sellingRate||0,
+      notes:o.notes||'', poNum:o.poNum||'', vendorPoNum:o.vendorPoNum||'',
+      grn:o.grn||{}, billing:o.billing||{}, delivery:o.delivery||{},
+      etaHistory:o.etaHistory||[], trail:o.trail||[],
+      createdBy:o.createdBy||'', isStockOrder:o.isStockOrder||false,
     };
   }
 
   /* ── map HTML order → API payload ── */
   function _toAPI(o){
     return {
-      customer:     o.customer,
-      product:      o.product,
-      orderedCode:  o.orderedCode  || '',
-      vendor:       o.vendor       || '',
-      qty:          o.qty,
-      unit:         o.unit         || 'pcs',
-      orderDate:    o.orderDate,
-      eta:          o.eta          || '',
-      status:       o.status       || 'Order',
-      lr:           o.lr           || '',
-      lrDate:       o.lrDate       || '',
-      transporter:  o.transporter  || '',
-      purchaseRate: o.purchaseRate || 0,
-      sellingRate:  o.sellingRate  || 0,
-      notes:        o.notes        || '',
-      poNum:        o.poNum        || '',
-      vendorPoNum:  o.vendorPoNum  || '',
-      groupDonId:   o.groupDonId   || null,
-      grn:          o.grn          || {},
-      billing:      o.billing      || {},
-      delivery:     o.delivery     || {},
-      etaHistory:   o.etaHistory   || [],
-      trail:        o.trail        || [],
-      isStockOrder: o.isStockOrder || false,
+      customer:o.customer, product:o.product,
+      orderedCode:o.orderedCode||'', vendor:o.vendor||'',
+      qty:o.qty, unit:o.unit||'pcs', orderDate:o.orderDate,
+      eta:o.eta||'', status:o.status||'Order',
+      lr:o.lr||'', lrDate:o.lrDate||'',
+      transporter:o.transporter||'',
+      purchaseRate:o.purchaseRate||0, sellingRate:o.sellingRate||0,
+      notes:o.notes||'', poNum:o.poNum||'', vendorPoNum:o.vendorPoNum||'',
+      groupDonId:o.groupDonId||null,
+      grn:o.grn||{}, billing:o.billing||{}, delivery:o.delivery||{},
+      etaHistory:o.etaHistory||[], trail:o.trail||[],
+      isStockOrder:o.isStockOrder||false,
     };
   }
 
-  /* ── load ALL data from API into HTML globals ── */
+  /* ── load all master data from API ── */
   async function _loadAll(){
-    /* Orders (paginated) */
+    /* Orders */
     try{
       let all=[], page=1, pages=1;
       while(page<=pages && page<=50){
-        const r = await _req('GET',`/api/orders?page=${page}&limit=200`);
-        all = all.concat(r.data||[]);
-        pages = r.pages||1; page++;
+        const r=await _req('GET',`/api/orders?page=${page}&limit=200`);
+        all=all.concat(r.data||[]);
+        pages=r.pages||1; page++;
       }
-      orders = all.map(_toLocal);
+      orders=all.map(_toLocal);
       if(orders.length>0)
-        nextOrderId = Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0)) + 1;
-    }catch(e){ console.warn('orders load:',e); }
+        nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+    }catch(e){console.warn('orders:',e);}
 
     /* Customers */
     try{
-      const r = await _req('GET','/api/customers?isActive=all');
-      customers = (r.data||[]).map((c,i)=>({
-        id:i+1, _id:c._id,
-        name:c.name||'', contact:c.contact||'',
-        phone:c.phone||'', whatsapp:c.whatsapp||'',
-        city:c.city||'', addr:c.address||'',
-        email:c.email||'',
-        salesExec:c.salesExec||'', biller:c.biller||'', manager:c.manager||''
+      const r=await _req('GET','/api/customers?isActive=all');
+      customers=(r.data||[]).map((c,i)=>({
+        id:i+1,_id:c._id,name:c.name||'',
+        contact:c.contact||'',phone:c.phone||'',whatsapp:c.whatsapp||'',
+        city:c.city||'',addr:c.address||'',email:c.email||'',
+        salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''
       }));
-      nextId.customer = customers.length+1;
-    }catch(e){ console.warn('customers load:',e); }
+      nextId.customer=customers.length+1;
+    }catch(e){console.warn('customers:',e);}
 
     /* Vendors/Suppliers */
     try{
-      const r = await _req('GET','/api/suppliers?isActive=all');
-      vendors = (r.data||[]).map((v,i)=>({
-        id:i+1, _id:v._id,
-        name:v.name||'',
+      const r=await _req('GET','/api/suppliers?isActive=all');
+      vendors=(r.data||[]).map((v,i)=>({
+        id:i+1,_id:v._id,name:v.name||'',
         location:v.city||v.address||'',
         deliveryDays:v.leadTimeDays||v.deliveryDays||7,
         contact:v.contact||v.contactPerson||'',
-        phone:v.phone||'', whatsapp:v.whatsapp||''
+        phone:v.phone||'',whatsapp:v.whatsapp||''
       }));
-      nextId.vendor = vendors.length+1;
-    }catch(e){ console.warn('vendors load:',e); }
+      nextId.vendor=vendors.length+1;
+    }catch(e){console.warn('vendors:',e);}
 
     /* Products */
     try{
-      const r = await _req('GET','/api/products?isActive=all');
-      products = (r.data||[]).map((p,i)=>({
-        id:i+1, _id:p._id,
-        code:p.code||'', name:p.name||'',
-        category:p.category||'',
-        defaultVendor:p.defaultVendor||'',
-        unit:p.unit||'pcs',
-        parentCode:p.parentCode||'',
-        parentAlias:p.parentAlias||''
+      const r=await _req('GET','/api/products?isActive=all');
+      products=(r.data||[]).map((p,i)=>({
+        id:i+1,_id:p._id,code:p.code||'',name:p.name||'',
+        category:p.category||'',defaultVendor:p.defaultVendor||'',
+        unit:p.unit||'pcs',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''
       }));
-      nextProductId = products.length+1;
-    }catch(e){ console.warn('products load:',e); }
+      nextProductId=products.length+1;
+    }catch(e){console.warn('products:',e);}
 
     /* Transporters */
     try{
-      const r = await _req('GET','/api/transporters?isActive=all');
-      tranvporters = (r.data||[]).map((t,i)=>({
-        id:i+1, _id:t._id,
-        name:t.name||'', type:t.type||'',
+      const r=await _req('GET','/api/transporters?isActive=all');
+      tranvporters=(r.data||[]).map((t,i)=>({
+        id:i+1,_id:t._id,name:t.name||'',type:t.type||'',
         location:t.city||t.address||'',
         transitDays:t.avgTransitDays||t.transitDays||0,
         contact:t.contact||t.contactPerson||'',
-        phone:t.phone||'', whatsapp:t.whatsapp||'',
-        notes:t.notes||''
+        phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''
       }));
-      nextTranvporterId = tranvporters.length+1;
-    }catch(e){ console.warn('transporters load:',e); }
+      nextTranvporterId=tranvporters.length+1;
+    }catch(e){console.warn('transporters:',e);}
 
     /* Users */
     try{
-      const r = await _req('GET','/api/users');
+      const r=await _req('GET','/api/users');
       if((r.data||[]).length>0){
-        users = (r.data||[]).map(u=>({
-          id:u._id, username:u.username,
-          name:u.name||u.username, role:u.role, password:''
+        users=(r.data||[]).map(u=>({
+          id:u._id,username:u.username,
+          name:u.name||u.username,role:u.role,password:''
         }));
-        /* re-anchor currentUser to the updated users array */
         if(currentUser){
-          const found=users.find(u=>u.username===currentUser.username);
-          if(found){ Object.assign(currentUser,found); }
+          const f=users.find(u=>u.username===currentUser.username);
+          if(f) Object.assign(currentUser,f);
         }
       }
-    }catch(e){ console.warn('users load:',e); }
+    }catch(e){console.warn('users:',e);}
   }
 
-  /* ── apply permissions from API response ── */
+  /* ── apply permissions ── */
   function _applyPerms(apiUser){
-    if(apiUser.permissions && apiUser.permissions.length>0){
-      userPermOverrides[apiUser.id||apiUser._id] = apiUser.permissions;
-    }
+    if(apiUser.permissions&&apiUser.permissions.length>0)
+      userPermOverrides[apiUser.id||apiUser._id]=apiUser.permissions;
   }
 
-  /* ── show login screen, clear session ── */
+  /* ── show login screen ── */
   function _showLogin(){
     currentUser=null;
-    try{ sessionStorage.removeItem('oms_session'); }catch(e){}
+    try{sessionStorage.removeItem('oms_session');}catch(e){}
     const ls=document.getElementById('loginScreen');
     const ap=document.getElementById('app');
     if(ls) ls.style.display='flex';
     if(ap) ap.style.display='none';
-    const lu=document.getElementById('lusr'), lp=document.getElementById('lpwd');
+    const lu=document.getElementById('lusr'),lp=document.getElementById('lpwd');
     if(lu) lu.value=''; if(lp) lp.value='';
   }
 
-  /* ── restore session from stored JWT ── */
+  /* ── launch app after API auth ── */
+  function _launchApp(usr, apiUser){
+    _authReady=true;
+    currentUser=usr;
+    _applyPerms({id:usr.id,permissions:apiUser.permissions});
+    try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(e){}
+    const go=()=>{
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('app').style.display='block';
+      if(typeof _origInitApp==='function') _origInitApp.call(window);
+    };
+    if(document.readyState==='loading'){
+      document.addEventListener('DOMContentLoaded',go,{once:true});
+    } else {
+      go();
+    }
+  }
+
+  /* ── restore session from JWT ── */
   async function _restoreSession(){
     const tok=localStorage.getItem(_JWT_KEY);
-    if(!tok){ _showLogin(); return; }
+    if(!tok){ return; /* _authReady stays false; initApp override will show login */ }
     try{
-      const r  = await _req('GET','/api/auth/me');
-      const au = r.user;
-      /* ensure user exists in local array */
-      let usr = users.find(u=>u.username===au.username);
+      const r=await _req('GET','/api/auth/me');
+      const au=r.user;
+      let usr=users.find(u=>u.username===au.username);
       if(!usr){
-        usr={id:au._id||au.id, username:au.username, name:au.name||au.username, role:au.role, password:''};
+        usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
         users.push(usr);
       }
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
-      currentUser=usr;
-      _applyPerms({id:usr.id, permissions:au.permissions});
-      try{ sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username})); }catch(e){}
-
       await _loadAll();
-
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      initApp();
+      _launchApp(usr, au);
     }catch(e){
       localStorage.removeItem(_JWT_KEY);
-      _showLogin();
+      /* _authReady stays false; initApp guard shows login */
     }
   }
 
   /* ════════════════════════════════
      OVERRIDE: doLogin
   ════════════════════════════════ */
-  window.doLogin = async function(){
+  window.doLogin=async function(){
     const u=(document.getElementById('lusr').value||'').trim();
     const p=(document.getElementById('lpwd').value||'').trim();
     const lerr=document.getElementById('lerr');
-    if(lerr){ lerr.style.display='none'; lerr.textContent='Wrong username or password.'; }
+    if(lerr){lerr.style.display='none';lerr.textContent='Wrong username or password.';}
     try{
-      const r = await _req('POST','/api/auth/login',{username:u,password:p});
-      localStorage.setItem(_JWT_KEY, r.token);
+      const r=await _req('POST','/api/auth/login',{username:u,password:p});
+      localStorage.setItem(_JWT_KEY,r.token);
       const au=r.user;
       let usr=users.find(x=>x.username===au.username);
       if(!usr){
@@ -15049,21 +15036,20 @@ function _updateChipStates(){
         users.push(usr);
       }
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au.id;
-      currentUser=usr;
-      _applyPerms({id:usr.id, permissions:au.permissions});
-      try{ sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username})); }catch(e){}
-
       await _loadAll();
-
+      _authReady=true;
+      currentUser=usr;
+      _applyPerms({id:usr.id,permissions:au.permissions});
+      try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(e){}
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       if(typeof audit==='function')
         audit('LOGIN',`Logged in as ${usr.name||usr.username} (${typeof getRoleLabel==='function'?getRoleLabel(usr.role):usr.role})`,'user',usr.id);
-      initApp();
+      if(typeof _origInitApp==='function') _origInitApp.call(window);
     }catch(e){
       if(lerr){
         lerr.style.display='block';
-        lerr.textContent = (e.message||'').toLowerCase().includes('invalid') ? 'Wrong username or password.' : 'Login failed. Please try again.';
+        lerr.textContent=(e.message||'').toLowerCase().includes('invalid')?'Wrong username or password.':'Login failed. Please try again.';
       }
     }
   };
@@ -15071,13 +15057,14 @@ function _updateChipStates(){
   /* ════════════════════════════════
      OVERRIDE: doLogout
   ════════════════════════════════ */
-  window.doLogout = function(){
+  window.doLogout=function(){
+    _authReady=false;
     localStorage.removeItem(_JWT_KEY);
     currentUser=null;
-    try{ sessionStorage.removeItem('oms_session'); }catch(e){}
+    try{sessionStorage.removeItem('oms_session');}catch(e){}
     document.getElementById('app').style.display='none';
     document.getElementById('loginScreen').style.display='flex';
-    const lu=document.getElementById('lusr'), lp=document.getElementById('lpwd');
+    const lu=document.getElementById('lusr'),lp=document.getElementById('lpwd');
     if(lu) lu.value=''; if(lp) lp.value='';
   };
 
@@ -15085,123 +15072,110 @@ function _updateChipStates(){
      ORDER SYNC (debounced)
   ════════════════════════════════ */
   let _syncTimer=null;
-  const _snap={};  /* id → JSON snapshot at last successful sync */
+  const _snap={};
 
   async function _syncOrders(){
     for(const o of orders){
       const cur=JSON.stringify(o);
-      if(_snap[o.id]===cur) continue;  /* unchanged */
+      if(_snap[o.id]===cur) continue;
       try{
         if(!o._id){
           const r=await _req('POST','/api/orders',_toAPI(o));
-          if(r.data){ o._id=r.data._id; o.id=r.data.seqId||o.id; }
-        } else {
+          if(r.data){o._id=r.data._id;o.id=r.data.seqId||o.id;}
+        }else{
           await _req('PUT','/api/orders/'+o._id,_toAPI(o));
         }
         _snap[o.id]=JSON.stringify(o);
-      }catch(e){ console.warn('order sync err:',e); }
+      }catch(e){console.warn('order sync:',e);}
     }
   }
 
   /* ════════════════════════════════
      OVERRIDE: persistOrders
   ════════════════════════════════ */
-  const _origPersist = window.persistOrders;
-  window.persistOrders = function(){
-    /* keep localStorage in sync (original behaviour) */
+  const _origPersist=window.persistOrders;
+  window.persistOrders=function(){
     try{
       localStorage.setItem('oms_orders_v3',JSON.stringify(orders));
       localStorage.setItem('oms_next_id',String(nextOrderId));
     }catch(e){}
-    /* debounced API sync */
     clearTimeout(_syncTimer);
-    _syncTimer=setTimeout(_syncOrders, 800);
+    _syncTimer=setTimeout(_syncOrders,800);
   };
 
   /* ════════════════════════════════
      OVERRIDE: saveCustomer
   ════════════════════════════════ */
-  const _origSaveCust = window.saveCustomer;
-  window.saveCustomer = async function(){
-    const wasEditing = typeof editingCustomer !== 'undefined' ? editingCustomer : null;
+  const _origSaveCust=window.saveCustomer;
+  window.saveCustomer=async function(){
+    const wasEditing=typeof editingCustomer!=='undefined'?editingCustomer:null;
     _origSaveCust.call(this);
-    const cust = wasEditing
-      ? customers.find(c=>c.id===wasEditing)
-      : customers[customers.length-1];
+    const cust=wasEditing?customers.find(c=>c.id===wasEditing):customers[customers.length-1];
     if(!cust) return;
     try{
-      const pl={name:cust.name, phone:cust.phone||'', email:cust.email||'',
-        address:cust.addr||'', city:cust.city||'',
-        contact:cust.contact||'', whatsapp:cust.whatsapp||'',
-        salesExec:cust.salesExec||'', biller:cust.biller||'', manager:cust.manager||''};
-      if(cust._id){ await _req('PUT','/api/customers/'+cust._id,pl); }
-      else{ const r=await _req('POST','/api/customers',pl); if(r.data) cust._id=r.data._id; }
-    }catch(e){ console.warn('customer sync:',e); }
+      const pl={name:cust.name,phone:cust.phone||'',email:cust.email||'',
+        address:cust.addr||'',city:cust.city||'',contact:cust.contact||'',
+        whatsapp:cust.whatsapp||'',salesExec:cust.salesExec||'',
+        biller:cust.biller||'',manager:cust.manager||''};
+      if(cust._id){await _req('PUT','/api/customers/'+cust._id,pl);}
+      else{const r=await _req('POST','/api/customers',pl);if(r.data)cust._id=r.data._id;}
+    }catch(e){console.warn('customer sync:',e);}
   };
 
   /* ════════════════════════════════
      OVERRIDE: saveVendor
   ════════════════════════════════ */
-  const _origSaveVend = window.saveVendor;
-  window.saveVendor = async function(){
-    const wasEditing = typeof editingVendor !== 'undefined' ? editingVendor : null;
+  const _origSaveVend=window.saveVendor;
+  window.saveVendor=async function(){
+    const wasEditing=typeof editingVendor!=='undefined'?editingVendor:null;
     _origSaveVend.call(this);
-    const vend = wasEditing
-      ? vendors.find(v=>v.id===wasEditing)
-      : vendors[vendors.length-1];
+    const vend=wasEditing?vendors.find(v=>v.id===wasEditing):vendors[vendors.length-1];
     if(!vend) return;
     try{
-      const pl={name:vend.name, city:vend.location||'', leadTimeDays:vend.deliveryDays||7,
-        phone:vend.phone||'', whatsapp:vend.whatsapp||'', contact:vend.contact||''};
-      if(vend._id){ await _req('PUT','/api/suppliers/'+vend._id,pl); }
-      else{ const r=await _req('POST','/api/suppliers',pl); if(r.data) vend._id=r.data._id; }
-    }catch(e){ console.warn('vendor sync:',e); }
+      const pl={name:vend.name,city:vend.location||'',leadTimeDays:vend.deliveryDays||7,
+        phone:vend.phone||'',whatsapp:vend.whatsapp||'',contact:vend.contact||''};
+      if(vend._id){await _req('PUT','/api/suppliers/'+vend._id,pl);}
+      else{const r=await _req('POST','/api/suppliers',pl);if(r.data)vend._id=r.data._id;}
+    }catch(e){console.warn('vendor sync:',e);}
   };
 
   /* ════════════════════════════════
      OVERRIDE: saveProduct
   ════════════════════════════════ */
-  const _origSaveProd = window.saveProduct;
-  window.saveProduct = async function(){
-    const wasEditing = typeof editingProduct !== 'undefined' ? editingProduct : null;
+  const _origSaveProd=window.saveProduct;
+  window.saveProduct=async function(){
+    const wasEditing=typeof editingProduct!=='undefined'?editingProduct:null;
     _origSaveProd.call(this);
-    const prod = wasEditing
-      ? products.find(p=>p.id===wasEditing)
-      : products[products.length-1];
+    const prod=wasEditing?products.find(p=>p.id===wasEditing):products[products.length-1];
     if(!prod) return;
     try{
-      const pl={name:prod.name, code:prod.code||'', category:prod.category||'',
-        unit:prod.unit||'pcs', defaultVendor:prod.defaultVendor||'',
-        parentCode:prod.parentCode||'', parentAlias:prod.parentAlias||''};
-      if(prod._id){ await _req('PUT','/api/products/'+prod._id,pl); }
-      else{ const r=await _req('POST','/api/products',pl); if(r.data) prod._id=r.data._id; }
-    }catch(e){ console.warn('product sync:',e); }
+      const pl={name:prod.name,code:prod.code||'',category:prod.category||'',
+        unit:prod.unit||'pcs',defaultVendor:prod.defaultVendor||'',
+        parentCode:prod.parentCode||'',parentAlias:prod.parentAlias||''};
+      if(prod._id){await _req('PUT','/api/products/'+prod._id,pl);}
+      else{const r=await _req('POST','/api/products',pl);if(r.data)prod._id=r.data._id;}
+    }catch(e){console.warn('product sync:',e);}
   };
 
   /* ════════════════════════════════
      OVERRIDE: saveTranvporter
   ════════════════════════════════ */
-  const _origSaveTrans = window.saveTranvporter;
-  window.saveTranvporter = async function(){
-    const wasEditing = typeof editingTranvporter !== 'undefined' ? editingTranvporter : null;
+  const _origSaveTrans=window.saveTranvporter;
+  window.saveTranvporter=async function(){
+    const wasEditing=typeof editingTranvporter!=='undefined'?editingTranvporter:null;
     _origSaveTrans.call(this);
-    const trans = wasEditing
-      ? tranvporters.find(t=>t.id===wasEditing)
-      : tranvporters[tranvporters.length-1];
+    const trans=wasEditing?tranvporters.find(t=>t.id===wasEditing):tranvporters[tranvporters.length-1];
     if(!trans) return;
     try{
-      const pl={name:trans.name, type:trans.type||'', city:trans.location||'',
-        avgTransitDays:trans.transitDays||0, phone:trans.phone||'',
-        contact:trans.contact||'', whatsapp:trans.whatsapp||'', notes:trans.notes||''};
-      if(trans._id){ await _req('PUT','/api/transporters/'+trans._id,pl); }
-      else{ const r=await _req('POST','/api/transporters',pl); if(r.data) trans._id=r.data._id; }
-    }catch(e){ console.warn('transporter sync:',e); }
+      const pl={name:trans.name,type:trans.type||'',city:trans.location||'',
+        avgTransitDays:trans.transitDays||0,phone:trans.phone||'',
+        contact:trans.contact||'',whatsapp:trans.whatsapp||'',notes:trans.notes||''};
+      if(trans._id){await _req('PUT','/api/transporters/'+trans._id,pl);}
+      else{const r=await _req('POST','/api/transporters',pl);if(r.data)trans._id=r.data._id;}
+    }catch(e){console.warn('transporter sync:',e);}
   };
 
-  /* ════════════════════════════════
-     BOOT: enforce API auth
-     (overrides restoreSession IIFE auto-login)
-  ════════════════════════════════ */
+  /* ── kick off JWT validation (async, runs in background) ── */
   _restoreSession();
 
 })();
