@@ -1860,9 +1860,9 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
         <div id="err-transitVendorName" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:3px"></div>
       </div>
       <div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">LR / Way Bill No *</div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">LR No / Packing Slip No / Invoice No *</div>
         <div style="display:flex;gap:6px">
-          <input id="transitLR" type="text" placeholder="LR number…" style="font-size:12px;padding:6px 10px;flex:1;min-width:0"
+          <input id="transitLR" type="text" placeholder="LR no / Packing slip no / Invoice no…" style="font-size:12px;padding:6px 10px;flex:1;min-width:0"
             oninput="_transitClearErr('transitLR')">
           <div style="position:relative;display:flex;align-items:center;flex-shrink:0">
             <input id="transitLRDate" type="text" placeholder="DD/MM" maxlength="5"
@@ -7098,7 +7098,7 @@ function confirmTransit(){
   if(!mode){_transitShowErr('transitModeGroup','⚠ Please select a transport mode');hasErr=true;}
   if(!form){_transitShowErr('transitFormGroup','⚠ Please select material form');hasErr=true;}
   if(!vendor){_transitShowErr('transitVendorName','⚠ Transporter name is required — start typing to see suggestions');hasErr=true;}
-  if(!lr){_transitShowErr('transitLR','⚠ LR / Way Bill No is required');hasErr=true;}
+  if(!lr){_transitShowErr('transitLR','⚠ LR No / Packing Slip No / Invoice No is required');hasErr=true;}
   if(hasErr)return;
   // ── Collect checked orders from the shipment table ──
   const checkedRows=[...document.querySelectorAll('#transitOrderRows tr[data-orderid]')]
