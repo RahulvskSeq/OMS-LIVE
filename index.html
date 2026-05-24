@@ -15220,7 +15220,7 @@ function _updateChipStates(){
           _req('GET','/api/auth/me').then(r=>{
             const au=r.user;
             let u2=users.find(u=>u.username===au.username);
-            if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2.id=au._id||au.id; }
+            if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2._id=au._id; /* do NOT overwrite sequential u2.id */ }
             localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
           }).catch(e=>{
             if(e.status===401){
