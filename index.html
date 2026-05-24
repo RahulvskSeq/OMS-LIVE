@@ -14830,18 +14830,66 @@ function _updateChipStates(){
     if(typeof _origNavTo === 'function') return _origNavTo.call(this, page, ...args);
   };
 
-  /* ── Call _origInitApp safely after data is loaded, then restore page ── */
+  /* ── Show loading overlay in app content area ── */
+  function _showLoadingOverlay(){
+    const go = () => {
+      /* Hide login, show app shell so user sees sidebar immediately */
+      const ls = document.getElementById('loginScreen');
+      const ap = document.getElementById('app');
+      if(ls) ls.style.display = 'none';
+      if(ap) ap.style.display = 'block';
+      /* Inject a loading placeholder into the main content area */
+      const main = document.querySelector('.main-content') || document.querySelector('.main') || document.querySelector('#mainContent');
+      if(main && !document.getElementById('_bridgeLoader')){
+        const div = document.createElement('div');
+        div.id = '_bridgeLoader';
+        div.style.cssText = 'display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:16px;color:#64748b;font-size:15px;font-weight:600';
+        div.innerHTML = '<div style="width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#1a73e8;border-radius:50%;animation:spin 0.8s linear infinite"></div><span>Loading your data…</span>';
+        if(!document.getElementById('_spinStyle')){
+          const st=document.createElement('style');
+          st.id='_spinStyle';
+          st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+          document.head.appendChild(st);
+        }
+        main.prepend(div);
+      }
+    };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go, {once:true});
+    else go();
+  }
+
+  /* ── Call _origInitApp safely after data is loaded, go directly to saved page ── */
   function _renderApp(){
     _dataReady = true;
     _initPending = false;
-    if(typeof _origInitApp === 'function') _origInitApp.call(window);
-    /* After initApp navigates to dashboard, go back to where user was */
-    try{
-      const savedPage = sessionStorage.getItem(_PAGE_KEY);
-      if(savedPage && savedPage !== 'dashboard' && typeof _origNavTo === 'function'){
-        setTimeout(()=>_origNavTo.call(window, savedPage), 50);
-      }
-    }catch(e){}
+    /* Remove loading overlay */
+    const loader = document.getElementById('_bridgeLoader');
+    if(loader) loader.remove();
+
+    /* Get saved page before initApp overwrites it */
+    let savedPage = null;
+    try{ savedPage = sessionStorage.getItem(_PAGE_KEY); }catch(e){}
+
+    if(savedPage && savedPage !== 'dashboard' && typeof _origNavTo === 'function'){
+      /* Intercept the navTo('dashboard') call inside initApp — redirect straight to saved page */
+      const _prev = window.navTo;
+      let _intercepted = false;
+      window.navTo = function(page, ...args){
+        if(!_intercepted && page === 'dashboard'){
+          _intercepted = true;
+          window.navTo = _prev; /* restore before calling so page tracking works */
+          try{ sessionStorage.setItem(_PAGE_KEY, savedPage); }catch(e){}
+          if(typeof _origNavTo === 'function') return _origNavTo.call(this, savedPage, ...args);
+          return;
+        }
+        window.navTo = _prev;
+        if(typeof _origNavTo === 'function') return _origNavTo.call(this, page, ...args);
+      };
+      if(typeof _origInitApp === 'function') _origInitApp.call(window);
+      window.navTo = _prev; /* ensure restore in case initApp didn't call navTo */
+    } else {
+      if(typeof _origInitApp === 'function') _origInitApp.call(window);
+    }
   }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
@@ -15075,13 +15123,8 @@ function _updateChipStates(){
       _applyPerms({id:usr.id,permissions:cachedUsr.permissions||[]});
       try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(ex){}
 
-      /* Show app shell immediately (login screen hidden — no flash ever) */
-      const _showShell=()=>{
-        document.getElementById('loginScreen').style.display='none';
-        document.getElementById('app').style.display='block';
-      };
-      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_showShell,{once:true});
-      else _showShell();
+      /* Show app shell + loading indicator immediately */
+      _showLoadingOverlay();
 
       /* Load data from API, migrate localStorage if needed, then render */
       _loadAll()
