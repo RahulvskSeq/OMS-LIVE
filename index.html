@@ -14804,30 +14804,22 @@ function _updateChipStates(){
 </div>
 
 
-<!-- STENCIL OMS – API BRIDGE v2 -->
+<!-- STENCIL OMS – API BRIDGE v3 -->
 <script>
 (function(){
   'use strict';
   const _API     = 'https://web-production-3ead93.up.railway.app';
   const _JWT_KEY = 'stencil_jwt_v1';
-
-  /* ── allow initApp only after API auth completes ── */
   let _authReady = false;
 
-  /* ── Override initApp FIRST, before DOMContentLoaded fires ──
-     The restoreSession IIFE registers go() → initApp() on DOMContentLoaded.
-     We override initApp here so when go() calls it, we intercept. */
+  /* ── Override initApp before DOMContentLoaded fires ── */
   const _origInitApp = window.initApp;
   window.initApp = function(){
-    if(!_authReady){
-      /* Not authenticated via API yet — show login and bail */
-      _showLogin();
-      return;
-    }
+    if(!_authReady){ _showLogin(); return; }
     _origInitApp.call(this);
   };
 
-  /* ── low-level fetch helper ── */
+  /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
   async function _req(method, path, body){
     const tok = localStorage.getItem(_JWT_KEY);
     const r = await fetch(_API + path, {
@@ -14839,15 +14831,18 @@ function _updateChipStates(){
       ...(body ? {body:JSON.stringify(body)} : {})
     });
     const j = await r.json();
-    if(!r.ok) throw new Error(j.message || 'Error '+r.status);
+    if(!r.ok){
+      const err = new Error(j.message || 'Error '+r.status);
+      err.status = r.status;
+      throw err;
+    }
     return j;
   }
 
   /* ── map backend order → HTML order ── */
   function _toLocal(o){
     return {
-      id:o.seqId||0, _id:o._id,
-      groupDonId:o.groupDonId||null,
+      id:o.seqId||0, _id:o._id, groupDonId:o.groupDonId||null,
       customer:o.customer||'', product:o.product||'',
       orderedCode:o.orderedCode||'', vendor:o.vendor||'',
       qty:o.qty||0, unit:o.unit||'pcs',
@@ -14883,32 +14878,27 @@ function _updateChipStates(){
 
   /* ── load all master data from API ── */
   async function _loadAll(){
-    /* Orders */
     try{
       let all=[], page=1, pages=1;
       while(page<=pages && page<=50){
         const r=await _req('GET',`/api/orders?page=${page}&limit=200`);
-        all=all.concat(r.data||[]);
-        pages=r.pages||1; page++;
+        all=all.concat(r.data||[]); pages=r.pages||1; page++;
       }
       orders=all.map(_toLocal);
-      if(orders.length>0)
-        nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+      if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
     }catch(e){console.warn('orders:',e);}
 
-    /* Customers */
     try{
       const r=await _req('GET','/api/customers?isActive=all');
       customers=(r.data||[]).map((c,i)=>({
-        id:i+1,_id:c._id,name:c.name||'',
-        contact:c.contact||'',phone:c.phone||'',whatsapp:c.whatsapp||'',
-        city:c.city||'',addr:c.address||'',email:c.email||'',
+        id:i+1,_id:c._id,name:c.name||'',contact:c.contact||'',
+        phone:c.phone||'',whatsapp:c.whatsapp||'',city:c.city||'',
+        addr:c.address||'',email:c.email||'',
         salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''
       }));
       nextId.customer=customers.length+1;
     }catch(e){console.warn('customers:',e);}
 
-    /* Vendors/Suppliers */
     try{
       const r=await _req('GET','/api/suppliers?isActive=all');
       vendors=(r.data||[]).map((v,i)=>({
@@ -14921,7 +14911,6 @@ function _updateChipStates(){
       nextId.vendor=vendors.length+1;
     }catch(e){console.warn('vendors:',e);}
 
-    /* Products */
     try{
       const r=await _req('GET','/api/products?isActive=all');
       products=(r.data||[]).map((p,i)=>({
@@ -14932,7 +14921,6 @@ function _updateChipStates(){
       nextProductId=products.length+1;
     }catch(e){console.warn('products:',e);}
 
-    /* Transporters */
     try{
       const r=await _req('GET','/api/transporters?isActive=all');
       tranvporters=(r.data||[]).map((t,i)=>({
@@ -14945,7 +14933,6 @@ function _updateChipStates(){
       nextTranvporterId=tranvporters.length+1;
     }catch(e){console.warn('transporters:',e);}
 
-    /* Users */
     try{
       const r=await _req('GET','/api/users');
       if((r.data||[]).length>0){
@@ -14961,13 +14948,11 @@ function _updateChipStates(){
     }catch(e){console.warn('users:',e);}
   }
 
-  /* ── apply permissions ── */
   function _applyPerms(apiUser){
     if(apiUser.permissions&&apiUser.permissions.length>0)
       userPermOverrides[apiUser.id||apiUser._id]=apiUser.permissions;
   }
 
-  /* ── show login screen ── */
   function _showLogin(){
     currentUser=null;
     try{sessionStorage.removeItem('oms_session');}catch(e){}
@@ -14979,7 +14964,6 @@ function _updateChipStates(){
     if(lu) lu.value=''; if(lp) lp.value='';
   }
 
-  /* ── launch app after API auth ── */
   function _launchApp(usr, apiUser){
     _authReady=true;
     currentUser=usr;
@@ -14992,19 +14976,27 @@ function _updateChipStates(){
     };
     if(document.readyState==='loading'){
       document.addEventListener('DOMContentLoaded',go,{once:true});
-    } else {
-      go();
-    }
+    } else { go(); }
   }
 
-  /* ── restore session from JWT ── */
+  /* ════════════════════════════════
+     Restore session from JWT
+     KEY FIX: only remove JWT on 401 (invalid/expired token),
+     NOT on network errors (backend cold-starting, timeout, etc.)
+  ════════════════════════════════ */
   async function _restoreSession(){
-    const tok=localStorage.getItem(_JWT_KEY);
-    if(!tok){ return; /* _authReady stays false; initApp override will show login */ }
+    const tok = localStorage.getItem(_JWT_KEY);
+    if(!tok){ return; }  /* no token → stay on login screen */
+
+    /* show a subtle loading indicator */
+    const lerr = document.getElementById('lerr');
+    if(lerr){ lerr.style.display='block'; lerr.style.color='#64748b'; lerr.textContent='Restoring session…'; }
+
     try{
-      const r=await _req('GET','/api/auth/me');
-      const au=r.user;
-      let usr=users.find(u=>u.username===au.username);
+      const r = await _req('GET','/api/auth/me');
+      const au = r.user;
+      if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
+      let usr = users.find(u=>u.username===au.username);
       if(!usr){
         usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
         users.push(usr);
@@ -15013,28 +15005,30 @@ function _updateChipStates(){
       await _loadAll();
       _launchApp(usr, au);
     }catch(e){
-      localStorage.removeItem(_JWT_KEY);
-      /* _authReady stays false; initApp guard shows login */
+      if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
+      /* ── ONLY wipe JWT if token is explicitly rejected (401) ── */
+      if(e.status===401){
+        localStorage.removeItem(_JWT_KEY);
+      }
+      /* For all other errors (network down, 500, timeout):
+         keep JWT in place so next refresh can retry */
+      /* Either way, show login screen */
     }
   }
 
-  /* ════════════════════════════════
-     OVERRIDE: doLogin
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: doLogin ════ */
   window.doLogin=async function(){
     const u=(document.getElementById('lusr').value||'').trim();
     const p=(document.getElementById('lpwd').value||'').trim();
     const lerr=document.getElementById('lerr');
-    if(lerr){lerr.style.display='none';lerr.textContent='Wrong username or password.';}
+    if(lerr){lerr.style.display='block';lerr.style.color='#64748b';lerr.textContent='Signing in…';}
     try{
       const r=await _req('POST','/api/auth/login',{username:u,password:p});
       localStorage.setItem(_JWT_KEY,r.token);
+      if(lerr){lerr.style.display='none';lerr.style.color='';}
       const au=r.user;
       let usr=users.find(x=>x.username===au.username);
-      if(!usr){
-        usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
-        users.push(usr);
-      }
+      if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};users.push(usr);}
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au.id;
       await _loadAll();
       _authReady=true;
@@ -15048,15 +15042,14 @@ function _updateChipStates(){
       if(typeof _origInitApp==='function') _origInitApp.call(window);
     }catch(e){
       if(lerr){
-        lerr.style.display='block';
-        lerr.textContent=(e.message||'').toLowerCase().includes('invalid')?'Wrong username or password.':'Login failed. Please try again.';
+        lerr.style.display='block'; lerr.style.color='';
+        lerr.textContent=(e.message||'').toLowerCase().includes('invalid')||e.status===401
+          ?'Wrong username or password.':'Login failed. Please try again.';
       }
     }
   };
 
-  /* ════════════════════════════════
-     OVERRIDE: doLogout
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: doLogout ════ */
   window.doLogout=function(){
     _authReady=false;
     localStorage.removeItem(_JWT_KEY);
@@ -15068,12 +15061,9 @@ function _updateChipStates(){
     if(lu) lu.value=''; if(lp) lp.value='';
   };
 
-  /* ════════════════════════════════
-     ORDER SYNC (debounced)
-  ════════════════════════════════ */
+  /* ════ ORDER SYNC (debounced) ════ */
   let _syncTimer=null;
   const _snap={};
-
   async function _syncOrders(){
     for(const o of orders){
       const cur=JSON.stringify(o);
@@ -15090,22 +15080,14 @@ function _updateChipStates(){
     }
   }
 
-  /* ════════════════════════════════
-     OVERRIDE: persistOrders
-  ════════════════════════════════ */
-  const _origPersist=window.persistOrders;
+  /* ════ OVERRIDE: persistOrders ════ */
   window.persistOrders=function(){
-    try{
-      localStorage.setItem('oms_orders_v3',JSON.stringify(orders));
-      localStorage.setItem('oms_next_id',String(nextOrderId));
-    }catch(e){}
+    try{localStorage.setItem('oms_orders_v3',JSON.stringify(orders));localStorage.setItem('oms_next_id',String(nextOrderId));}catch(e){}
     clearTimeout(_syncTimer);
     _syncTimer=setTimeout(_syncOrders,800);
   };
 
-  /* ════════════════════════════════
-     OVERRIDE: saveCustomer
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: saveCustomer ════ */
   const _origSaveCust=window.saveCustomer;
   window.saveCustomer=async function(){
     const wasEditing=typeof editingCustomer!=='undefined'?editingCustomer:null;
@@ -15113,18 +15095,13 @@ function _updateChipStates(){
     const cust=wasEditing?customers.find(c=>c.id===wasEditing):customers[customers.length-1];
     if(!cust) return;
     try{
-      const pl={name:cust.name,phone:cust.phone||'',email:cust.email||'',
-        address:cust.addr||'',city:cust.city||'',contact:cust.contact||'',
-        whatsapp:cust.whatsapp||'',salesExec:cust.salesExec||'',
-        biller:cust.biller||'',manager:cust.manager||''};
+      const pl={name:cust.name,phone:cust.phone||'',email:cust.email||'',address:cust.addr||'',city:cust.city||'',contact:cust.contact||'',whatsapp:cust.whatsapp||'',salesExec:cust.salesExec||'',biller:cust.biller||'',manager:cust.manager||''};
       if(cust._id){await _req('PUT','/api/customers/'+cust._id,pl);}
       else{const r=await _req('POST','/api/customers',pl);if(r.data)cust._id=r.data._id;}
     }catch(e){console.warn('customer sync:',e);}
   };
 
-  /* ════════════════════════════════
-     OVERRIDE: saveVendor
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: saveVendor ════ */
   const _origSaveVend=window.saveVendor;
   window.saveVendor=async function(){
     const wasEditing=typeof editingVendor!=='undefined'?editingVendor:null;
@@ -15132,16 +15109,13 @@ function _updateChipStates(){
     const vend=wasEditing?vendors.find(v=>v.id===wasEditing):vendors[vendors.length-1];
     if(!vend) return;
     try{
-      const pl={name:vend.name,city:vend.location||'',leadTimeDays:vend.deliveryDays||7,
-        phone:vend.phone||'',whatsapp:vend.whatsapp||'',contact:vend.contact||''};
+      const pl={name:vend.name,city:vend.location||'',leadTimeDays:vend.deliveryDays||7,phone:vend.phone||'',whatsapp:vend.whatsapp||'',contact:vend.contact||''};
       if(vend._id){await _req('PUT','/api/suppliers/'+vend._id,pl);}
       else{const r=await _req('POST','/api/suppliers',pl);if(r.data)vend._id=r.data._id;}
     }catch(e){console.warn('vendor sync:',e);}
   };
 
-  /* ════════════════════════════════
-     OVERRIDE: saveProduct
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: saveProduct ════ */
   const _origSaveProd=window.saveProduct;
   window.saveProduct=async function(){
     const wasEditing=typeof editingProduct!=='undefined'?editingProduct:null;
@@ -15149,17 +15123,13 @@ function _updateChipStates(){
     const prod=wasEditing?products.find(p=>p.id===wasEditing):products[products.length-1];
     if(!prod) return;
     try{
-      const pl={name:prod.name,code:prod.code||'',category:prod.category||'',
-        unit:prod.unit||'pcs',defaultVendor:prod.defaultVendor||'',
-        parentCode:prod.parentCode||'',parentAlias:prod.parentAlias||''};
+      const pl={name:prod.name,code:prod.code||'',category:prod.category||'',unit:prod.unit||'pcs',defaultVendor:prod.defaultVendor||'',parentCode:prod.parentCode||'',parentAlias:prod.parentAlias||''};
       if(prod._id){await _req('PUT','/api/products/'+prod._id,pl);}
       else{const r=await _req('POST','/api/products',pl);if(r.data)prod._id=r.data._id;}
     }catch(e){console.warn('product sync:',e);}
   };
 
-  /* ════════════════════════════════
-     OVERRIDE: saveTranvporter
-  ════════════════════════════════ */
+  /* ════ OVERRIDE: saveTranvporter ════ */
   const _origSaveTrans=window.saveTranvporter;
   window.saveTranvporter=async function(){
     const wasEditing=typeof editingTranvporter!=='undefined'?editingTranvporter:null;
@@ -15167,15 +15137,13 @@ function _updateChipStates(){
     const trans=wasEditing?tranvporters.find(t=>t.id===wasEditing):tranvporters[tranvporters.length-1];
     if(!trans) return;
     try{
-      const pl={name:trans.name,type:trans.type||'',city:trans.location||'',
-        avgTransitDays:trans.transitDays||0,phone:trans.phone||'',
-        contact:trans.contact||'',whatsapp:trans.whatsapp||'',notes:trans.notes||''};
+      const pl={name:trans.name,type:trans.type||'',city:trans.location||'',avgTransitDays:trans.transitDays||0,phone:trans.phone||'',contact:trans.contact||'',whatsapp:trans.whatsapp||'',notes:trans.notes||''};
       if(trans._id){await _req('PUT','/api/transporters/'+trans._id,pl);}
       else{const r=await _req('POST','/api/transporters',pl);if(r.data)trans._id=r.data._id;}
     }catch(e){console.warn('transporter sync:',e);}
   };
 
-  /* ── kick off JWT validation (async, runs in background) ── */
+  /* ── Start async session restore ── */
   _restoreSession();
 
 })();
