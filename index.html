@@ -14882,19 +14882,6 @@ function _updateChipStates(){
       if(typeof _origInitApp === 'function') _origInitApp.call(window);
     }
 
-    /* Restore order status filter if on orders page */
-    if(savedPage === 'orders' || (typeof currentPage !== 'undefined' && currentPage === 'orders')){
-      try{
-        const sf = JSON.parse(sessionStorage.getItem(_ORD_FILTER_KEY)||'{}');
-        if(sf.status && typeof colFilters !== 'undefined'){
-          colFilters['status'] = sf.status;
-          setTimeout(()=>{
-            if(typeof renderOrdersTable==='function') renderOrdersTable();
-            if(typeof renderOrderKpis==='function') renderOrderKpis();
-          }, 80);
-        }
-      }catch(e){}
-    }
   }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
@@ -15411,11 +15398,33 @@ function _updateChipStates(){
     if(typeof _origSetOrdStage==='function') _origSetOrdStage.call(this, stage);
     try{ sessionStorage.setItem(_ORD_FILTER_KEY, JSON.stringify(colFilters||{})); }catch(e){}
   };
-  /* Also clear saved filter when navigating to all orders (e.g. from dashboard) */
+  /* Also save filter when navigating to orders from dashboard KPI chips */
   const _origFilterAndGo = window.filterAndGoOrders;
   window.filterAndGoOrders = function(status){
     if(typeof _origFilterAndGo==='function') _origFilterAndGo.call(this, status);
     try{ sessionStorage.setItem(_ORD_FILTER_KEY, status ? JSON.stringify({status}) : '{}'); }catch(e){}
+  };
+
+  /* ════ ROBUST FILTER RESTORE: inject saved filter before the very first renderOrdersTable call ════ */
+  /* This fires synchronously inside renderPage('orders') — no setTimeout race condition possible    */
+  let _filterRestored = false;
+  const _origRenderOrdTable = window.renderOrdersTable;
+  window.renderOrdersTable = function(){
+    if(!_filterRestored){
+      _filterRestored = true;
+      try{
+        const sf = JSON.parse(sessionStorage.getItem(_ORD_FILTER_KEY)||'{}');
+        if(sf.status && typeof colFilters !== 'undefined') colFilters['status'] = sf.status;
+      }catch(e){}
+    }
+    if(typeof _origRenderOrdTable === 'function') return _origRenderOrdTable.call(this);
+  };
+
+  /* Clear saved filter when user explicitly clicks "Clear Filters" */
+  const _origClearOrderFilters = window.clearOrderFilters;
+  window.clearOrderFilters = function(){
+    if(typeof _origClearOrderFilters === 'function') _origClearOrderFilters.call(this);
+    try{ sessionStorage.setItem(_ORD_FILTER_KEY, '{}'); }catch(e){}
   };
 
   /* ════ OVERRIDE: _applyMasterImport — sync bulk-imported records to API ════ */
