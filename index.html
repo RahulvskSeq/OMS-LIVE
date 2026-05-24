@@ -14981,38 +14981,56 @@ function _updateChipStates(){
 
   /* ════════════════════════════════
      Restore session from JWT
-     KEY FIX: only remove JWT on 401 (invalid/expired token),
-     NOT on network errors (backend cold-starting, timeout, etc.)
+     v4: retry on network errors (Railway cold-start), only wipe on 401
   ════════════════════════════════ */
   async function _restoreSession(){
     const tok = localStorage.getItem(_JWT_KEY);
     if(!tok){ return; }  /* no token → stay on login screen */
 
-    /* show a subtle loading indicator */
     const lerr = document.getElementById('lerr');
-    if(lerr){ lerr.style.display='block'; lerr.style.color='#64748b'; lerr.textContent='Restoring session…'; }
+    const _msg = (txt, col) => {
+      if(!lerr) return;
+      lerr.style.display='block';
+      lerr.style.color = col||'#64748b';
+      lerr.textContent = txt;
+    };
 
-    try{
-      const r = await _req('GET','/api/auth/me');
-      const au = r.user;
-      if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
-      let usr = users.find(u=>u.username===au.username);
-      if(!usr){
-        usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
-        users.push(usr);
+    /* Retry up to 5 times with increasing delays (covers Railway cold-start ~15s) */
+    const delays = [0, 3000, 5000, 7000, 10000];
+    for(let attempt=0; attempt<delays.length; attempt++){
+      if(delays[attempt]>0){
+        _msg('Server is starting up… reconnecting ('+(attempt)+'/4)', '#64748b');
+        await new Promise(r=>setTimeout(r, delays[attempt]));
+      } else {
+        _msg('Restoring session…', '#64748b');
       }
-      usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
-      await _loadAll();
-      _launchApp(usr, au);
-    }catch(e){
-      if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
-      /* ── ONLY wipe JWT if token is explicitly rejected (401) ── */
-      if(e.status===401){
-        localStorage.removeItem(_JWT_KEY);
+      try{
+        const r = await _req('GET','/api/auth/me');
+        const au = r.user;
+        if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
+        let usr = users.find(u=>u.username===au.username);
+        if(!usr){
+          usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
+          users.push(usr);
+        }
+        usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
+        await _loadAll();
+        _launchApp(usr, au);
+        return; /* success — stop retrying */
+      }catch(e){
+        if(e.status===401){
+          /* Token explicitly rejected — wipe JWT and stop */
+          localStorage.removeItem(_JWT_KEY);
+          if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
+          return;
+        }
+        /* Network / 5xx / timeout — keep JWT, retry on next iteration */
+        if(attempt===delays.length-1){
+          /* All retries exhausted — stay on login screen, JWT kept for manual retry */
+          _msg('Server unavailable. Please try logging in again.', '#ef4444');
+          setTimeout(()=>{ if(lerr) lerr.style.display='none'; }, 3000);
+        }
       }
-      /* For all other errors (network down, 500, timeout):
-         keep JWT in place so next refresh can retry */
-      /* Either way, show login screen */
     }
   }
 
