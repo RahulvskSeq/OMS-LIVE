@@ -14804,20 +14804,30 @@ function _updateChipStates(){
 </div>
 
 
-<!-- STENCIL OMS – API BRIDGE v3 -->
+<!-- STENCIL OMS – API BRIDGE v7 -->
 <script>
 (function(){
   'use strict';
   const _API     = 'https://web-production-3ead93.up.railway.app';
   const _JWT_KEY = 'stencil_jwt_v1';
   let _authReady = false;
+  let _dataReady = false;   /* true only after _loadAll() finishes */
+  let _initPending = false; /* IIFE called initApp() before data was ready */
 
-  /* ── Override initApp before DOMContentLoaded fires ── */
+  /* ── Override initApp — block IIFE's premature call until data is loaded ── */
   const _origInitApp = window.initApp;
   window.initApp = function(){
     if(!_authReady){ _showLogin(); return; }
+    if(!_dataReady){ _initPending = true; return; } /* data not ready yet — bridge will call later */
     _origInitApp.call(this);
   };
+
+  /* ── Call _origInitApp safely after data is loaded ── */
+  function _renderApp(){
+    _dataReady = true;
+    _initPending = false;
+    if(typeof _origInitApp === 'function') _origInitApp.call(window);
+  }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
   async function _req(method, path, body){
@@ -14948,6 +14958,53 @@ function _updateChipStates(){
     }catch(e){console.warn('users:',e);}
   }
 
+  /* ════ ONE-TIME MIGRATION: localStorage → MongoDB ════
+     If any entity has 0 records in the API but localStorage has data,
+     push localStorage data to MongoDB so it persists after refresh.
+  ═══════════════════════════════════════════════════════ */
+  const _MIG_KEY = 'stencil_migrated_v2';
+  async function _migrateFromLocalStorage(){
+    if(localStorage.getItem(_MIG_KEY)) return; /* already done */
+    const _ls = k => { try{ return JSON.parse(localStorage.getItem(k)||'[]'); }catch(e){ return []; } };
+    let synced = 0;
+
+    /* Customers */
+    if(customers.length === 0){
+      const ls = _ls('customers_v2');
+      for(const c of ls){
+        try{ await _req('POST','/api/customers',{name:c.name||'',phone:c.phone||'',email:c.email||'',address:c.addr||c.address||'',city:c.city||'',contact:c.contact||'',whatsapp:c.whatsapp||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''}); synced++; }catch(ex){}
+      }
+      if(synced > 0){ try{ const r=await _req('GET','/api/customers?isActive=all'); customers=(r.data||[]).map((c,i)=>({id:i+1,_id:c._id,name:c.name||'',contact:c.contact||'',phone:c.phone||'',whatsapp:c.whatsapp||'',city:c.city||'',addr:c.address||'',email:c.email||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''})); }catch(ex){} }
+    }
+    /* Vendors / Suppliers */
+    if(vendors.length === 0){
+      const ls = _ls('vendors_v2');
+      for(const v of ls){
+        try{ await _req('POST','/api/suppliers',{name:v.name||'',city:v.location||'',leadTimeDays:v.deliveryDays||7,phone:v.phone||'',whatsapp:v.whatsapp||'',contact:v.contact||''}); synced++; }catch(ex){}
+      }
+      if(vendors.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/suppliers?isActive=all'); vendors=(r.data||[]).map((v,i)=>({id:i+1,_id:v._id,name:v.name||'',location:v.city||'',deliveryDays:v.leadTimeDays||7,contact:v.contactPerson||v.contact||'',phone:v.phone||'',whatsapp:v.whatsapp||''})); }catch(ex){} }
+    }
+    /* Products */
+    if(products.length === 0){
+      const ls = _ls('products_v2');
+      for(const p of ls){
+        try{ await _req('POST','/api/products',{name:p.name||'',code:p.code||'',category:p.category||'',unit:p.unit||'pcs',defaultVendor:p.defaultVendor||'',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''}); synced++; }catch(ex){}
+      }
+      if(products.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/products?isActive=all'); products=(r.data||[]).map((p,i)=>({id:i+1,_id:p._id,code:p.code||'',name:p.name||'',category:p.category||'',defaultVendor:p.defaultVendor||'',unit:p.unit||'pcs',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''})); nextProductId=products.length+1; }catch(ex){} }
+    }
+    /* Transporters */
+    if(tranvporters.length === 0){
+      const ls = _ls('tranvporters_v1');
+      for(const t of ls){
+        try{ await _req('POST','/api/transporters',{name:t.name||'',type:t.type||'',city:t.location||'',avgTransitDays:t.transitDays||0,phone:t.phone||'',contact:t.contact||'',whatsapp:t.whatsapp||'',notes:t.notes||''}); synced++; }catch(ex){}
+      }
+      if(tranvporters.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/transporters?isActive=all'); tranvporters=(r.data||[]).map((t,i)=>({id:i+1,_id:t._id,name:t.name||'',type:t.type||'',location:t.city||'',transitDays:t.avgTransitDays||0,contact:t.contact||'',phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''})); nextTranvporterId=tranvporters.length+1; }catch(ex){} }
+    }
+
+    if(synced > 0 && typeof showToast==='function') showToast('✅ Migrated '+synced+' records from local storage to server','success');
+    localStorage.setItem(_MIG_KEY,'1');
+  }
+
   function _applyPerms(apiUser){
     if(apiUser.permissions&&apiUser.permissions.length>0)
       userPermOverrides[apiUser.id||apiUser._id]=apiUser.permissions;
@@ -14967,12 +15024,12 @@ function _updateChipStates(){
   function _launchApp(usr, apiUser){
     _authReady=true;
     currentUser=usr;
-    _applyPerms({id:usr.id,permissions:apiUser.permissions});
+    _applyPerms({id:usr.id,permissions:apiUser.permissions||[]});
     try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(e){}
     const go=()=>{
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
-      if(typeof _origInitApp==='function') _origInitApp.call(window);
+      _renderApp(); /* _dataReady=true → calls _origInitApp */
     };
     if(document.readyState==='loading'){
       document.addEventListener('DOMContentLoaded',go,{once:true});
@@ -15011,25 +15068,28 @@ function _updateChipStates(){
       if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_showShell,{once:true});
       else _showShell();
 
-      /* Load data from API, then render — data-race free */
-      _loadAll().then(()=>{
-        if(typeof _origInitApp==='function') _origInitApp.call(window);
-        /* After rendering, validate JWT quietly in background */
-        _req('GET','/api/auth/me').then(r=>{
-          const au=r.user;
-          let u2=users.find(u=>u.username===au.username);
-          if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2.id=au._id||au.id; }
-          localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
-        }).catch(e=>{
-          if(e.status===401){
-            localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
-            _authReady=false; window.doLogout ? window.doLogout() : location.reload();
-          }
+      /* Load data from API, migrate localStorage if needed, then render */
+      _loadAll()
+        .then(()=>_migrateFromLocalStorage())
+        .then(()=>{
+          _renderApp(); /* sets _dataReady=true, calls _origInitApp */
+          /* Validate JWT quietly in background */
+          _req('GET','/api/auth/me').then(r=>{
+            const au=r.user;
+            let u2=users.find(u=>u.username===au.username);
+            if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2.id=au._id||au.id; }
+            localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
+          }).catch(e=>{
+            if(e.status===401){
+              localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
+              _authReady=false; window.doLogout ? window.doLogout() : location.reload();
+            }
+          });
+        })
+        .catch(()=>{
+          /* _loadAll failed (Railway down) — still render with whatever localStorage has */
+          _renderApp();
         });
-      }).catch(()=>{
-        /* _loadAll failed (Railway down) — render with whatever localStorage has */
-        if(typeof _origInitApp==='function') _origInitApp.call(window);
-      });
       return;
     }
 
@@ -15050,6 +15110,7 @@ function _updateChipStates(){
         usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
         try{ localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,permissions:au.permissions||[]})); }catch(e){}
         await _loadAll();
+        await _migrateFromLocalStorage();
         _launchApp(usr,au);
         return;
       }catch(e){
@@ -15092,7 +15153,7 @@ function _updateChipStates(){
       document.getElementById('app').style.display='block';
       if(typeof audit==='function')
         audit('LOGIN',`Logged in as ${usr.name||usr.username} (${typeof getRoleLabel==='function'?getRoleLabel(usr.role):usr.role})`,'user',usr.id);
-      if(typeof _origInitApp==='function') _origInitApp.call(window);
+      _renderApp();
     }catch(e){
       if(lerr){
         lerr.style.display='block'; lerr.style.color='';
