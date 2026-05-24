@@ -14981,54 +14981,79 @@ function _updateChipStates(){
 
   /* ════════════════════════════════
      Restore session from JWT
-     v4: retry on network errors (Railway cold-start), only wipe on 401
+     v5: INSTANT restore from localStorage cache — no API wait on refresh.
+         JWT validated in background; only logs out on explicit 401.
   ════════════════════════════════ */
+  const _USR_KEY = 'stencil_user_v1';
+
   async function _restoreSession(){
     const tok = localStorage.getItem(_JWT_KEY);
-    if(!tok){ return; }  /* no token → stay on login screen */
+    if(!tok){ return; }
 
-    const lerr = document.getElementById('lerr');
-    const _msg = (txt, col) => {
-      if(!lerr) return;
-      lerr.style.display='block';
-      lerr.style.color = col||'#64748b';
-      lerr.textContent = txt;
-    };
+    /* ── Fast path: cached user → show app INSTANTLY, validate in background ── */
+    let cachedUsr = null;
+    try{ const s=localStorage.getItem(_USR_KEY); if(s) cachedUsr=JSON.parse(s); }catch(e){}
 
-    /* Retry up to 5 times with increasing delays (covers Railway cold-start ~15s) */
-    const delays = [0, 3000, 5000, 7000, 10000];
-    for(let attempt=0; attempt<delays.length; attempt++){
-      if(delays[attempt]>0){
-        _msg('Server is starting up… reconnecting ('+(attempt)+'/4)', '#64748b');
-        await new Promise(r=>setTimeout(r, delays[attempt]));
-      } else {
-        _msg('Restoring session…', '#64748b');
-      }
-      try{
-        const r = await _req('GET','/api/auth/me');
-        const au = r.user;
-        if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
-        let usr = users.find(u=>u.username===au.username);
-        if(!usr){
-          usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};
-          users.push(usr);
+    if(cachedUsr && cachedUsr.username){
+      /* Rebuild user object from cache */
+      let usr = users.find(u=>u.username===cachedUsr.username);
+      if(!usr){ usr={id:cachedUsr.id,username:cachedUsr.username,name:cachedUsr.name||cachedUsr.username,role:cachedUsr.role,password:''}; users.push(usr); }
+      usr.role=cachedUsr.role; usr.name=cachedUsr.name||cachedUsr.username; usr.id=cachedUsr.id;
+      _launchApp(usr, cachedUsr);  /* ← app visible immediately */
+
+      /* Background validation — don't block the UI */
+      setTimeout(async ()=>{
+        try{
+          const r=await _req('GET','/api/auth/me');
+          const au=r.user;
+          /* Update cache with fresh data */
+          let u2=users.find(u=>u.username===au.username);
+          if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2.id=au._id||au.id; }
+          localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
+          _loadAll(); /* refresh master data silently */
+        }catch(e){
+          if(e.status===401){
+            /* Token truly invalid — force logout */
+            localStorage.removeItem(_JWT_KEY);
+            localStorage.removeItem(_USR_KEY);
+            _authReady=false;
+            if(typeof doLogout==='function') doLogout();
+            else { currentUser=null; document.getElementById('loginScreen').style.display='flex'; document.getElementById('app').style.display='none'; }
+          }
+          /* Network errors: stay logged in, data may be slightly stale */
         }
+      }, 500);
+      return;
+    }
+
+    /* ── Slow path: no cache → wait for API (first login or cache cleared) ── */
+    const lerr=document.getElementById('lerr');
+    const _msg=(txt,col)=>{ if(!lerr) return; lerr.style.display='block'; lerr.style.color=col||'#64748b'; lerr.textContent=txt; };
+    _msg('Restoring session…');
+
+    const delays=[0,3000,6000,10000,15000];
+    for(let attempt=0;attempt<delays.length;attempt++){
+      if(delays[attempt]>0){ _msg('Connecting to server… ('+attempt+'/4)'); await new Promise(r=>setTimeout(r,delays[attempt])); }
+      try{
+        const r=await _req('GET','/api/auth/me');
+        const au=r.user;
+        if(lerr){ lerr.style.display='none'; }
+        let usr=users.find(u=>u.username===au.username);
+        if(!usr){ usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''}; users.push(usr); }
         usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
+        try{ localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,permissions:au.permissions||[]})); }catch(e){}
         await _loadAll();
-        _launchApp(usr, au);
-        return; /* success — stop retrying */
+        _launchApp(usr,au);
+        return;
       }catch(e){
         if(e.status===401){
-          /* Token explicitly rejected — wipe JWT and stop */
-          localStorage.removeItem(_JWT_KEY);
-          if(lerr){ lerr.style.display='none'; lerr.style.color=''; }
+          localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
+          if(lerr) lerr.style.display='none';
           return;
         }
-        /* Network / 5xx / timeout — keep JWT, retry on next iteration */
         if(attempt===delays.length-1){
-          /* All retries exhausted — stay on login screen, JWT kept for manual retry */
-          _msg('Server unavailable. Please try logging in again.', '#ef4444');
-          setTimeout(()=>{ if(lerr) lerr.style.display='none'; }, 3000);
+          _msg('Server unavailable. Please try logging in again.','#ef4444');
+          setTimeout(()=>{ if(lerr) lerr.style.display='none'; },4000);
         }
       }
     }
@@ -15047,12 +15072,15 @@ function _updateChipStates(){
       const au=r.user;
       let usr=users.find(x=>x.username===au.username);
       if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};users.push(usr);}
-      usr.role=au.role; usr.name=au.name||au.username; usr.id=au.id;
+      usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
       await _loadAll();
       _authReady=true;
       currentUser=usr;
       _applyPerms({id:usr.id,permissions:au.permissions});
-      try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(e){}
+      try{
+        sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));
+        localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,permissions:au.permissions||[]}));
+      }catch(e){}
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       if(typeof audit==='function')
@@ -15071,6 +15099,7 @@ function _updateChipStates(){
   window.doLogout=function(){
     _authReady=false;
     localStorage.removeItem(_JWT_KEY);
+    localStorage.removeItem(_USR_KEY);
     currentUser=null;
     try{sessionStorage.removeItem('oms_session');}catch(e){}
     document.getElementById('app').style.display='none';
