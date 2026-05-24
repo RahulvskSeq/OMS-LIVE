@@ -48,7 +48,7 @@ export default function Sidebar() {
         {NAV.filter(n => !n.perm || can(n.perm)).map(n => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) =>
             `sidebar-item ${isActive ? 'sidebar-active' : ''}`
-          }}>
+          }>
             <span className="text-base">{n.icon}</span>
             <span>{n.label}</span>
           </NavLink>
@@ -64,7 +64,7 @@ export default function Sidebar() {
               .map(n => (
                 <NavLink key={n.to} to={n.to} className={({ isActive }) =>
                   `sidebar-item ${isActive ? 'sidebar-active' : ''}`
-                }}>
+                }>
                   <span className="text-base">{n.icon}</span>
                   <span>{n.label}</span>
                 </NavLink>
