@@ -14812,8 +14812,9 @@ function _updateChipStates(){
     _origInitApp.call(this);
   };
 
-  /* ── Save/restore current page across refreshes ── */
+  /* ── Save/restore current page + order filters across refreshes ── */
   const _PAGE_KEY = 'stencil_page_v1';
+  const _ORD_FILTER_KEY = 'stencil_ord_filter_v1';
   const _origNavTo = window.navTo;
   window.navTo = function(page, ...args){
     try{ sessionStorage.setItem(_PAGE_KEY, page); }catch(e){}
@@ -14856,7 +14857,7 @@ function _updateChipStates(){
     const loader = document.getElementById('_bridgeLoader');
     if(loader) loader.remove();
 
-    /* Get saved page before initApp overwrites it */
+    /* Get saved page + saved order filter before initApp overwrites state */
     let savedPage = null;
     try{ savedPage = sessionStorage.getItem(_PAGE_KEY); }catch(e){}
 
@@ -14879,6 +14880,20 @@ function _updateChipStates(){
       window.navTo = _prev; /* ensure restore in case initApp didn't call navTo */
     } else {
       if(typeof _origInitApp === 'function') _origInitApp.call(window);
+    }
+
+    /* Restore order status filter if on orders page */
+    if(savedPage === 'orders' || (typeof currentPage !== 'undefined' && currentPage === 'orders')){
+      try{
+        const sf = JSON.parse(sessionStorage.getItem(_ORD_FILTER_KEY)||'{}');
+        if(sf.status && typeof colFilters !== 'undefined'){
+          colFilters['status'] = sf.status;
+          setTimeout(()=>{
+            if(typeof renderOrdersTable==='function') renderOrdersTable();
+            if(typeof renderOrderKpis==='function') renderOrderKpis();
+          }, 80);
+        }
+      }catch(e){}
     }
   }
 
@@ -14918,6 +14933,15 @@ function _updateChipStates(){
       grn:o.grn||{}, billing:o.billing||{}, delivery:o.delivery||{},
       etaHistory:o.etaHistory||[], trail:o.trail||[],
       createdBy:o.createdBy||'', isStockOrder:o.isStockOrder||false,
+      /* Fields that must survive refresh — kept in sync with _toAPI */
+      biller:o.biller||'', salesExec:o.salesExec||'',
+      cancelReason:o.cancelReason||'', cancelledBy:o.cancelledBy||'', cancelledAt:o.cancelledAt||'',
+      grnNo:o.grnNo||'', grnDate:o.grnDate||'', grnBy:o.grnBy||'', grnRemarks:o.grnRemarks||'',
+      purchVoucherNo:o.purchVoucherNo||'', physGrnNo:o.physGrnNo||'', physGrnDate:o.physGrnDate||'',
+      vendorInvoiceNum:o.vendorInvoiceNum||'', vendorInvoiceDate:o.vendorInvoiceDate||'',
+      remark:o.remark||'', comments:o.comments||[],
+      transitDetails:o.transitDetails||{},
+      isStockAddition:o.isStockAddition||false, linkedToOrderId:o.linkedToOrderId||null,
     };
   }
 
@@ -14936,6 +14960,16 @@ function _updateChipStates(){
       grn:o.grn||{}, billing:o.billing||{}, delivery:o.delivery||{},
       etaHistory:o.etaHistory||[], trail:o.trail||[],
       isStockOrder:o.isStockOrder||false,
+      /* Additional fields — must match _toLocal to prevent data loss on refresh */
+      biller:o.biller||'', salesExec:o.salesExec||'',
+      cancelReason:o.cancelReason||'', cancelledBy:o.cancelledBy||'', cancelledAt:o.cancelledAt||'',
+      grnNo:o.grnNo||'', grnDate:o.grnDate||'', grnBy:o.grnBy||'', grnRemarks:o.grnRemarks||'',
+      purchVoucherNo:o.purchVoucherNo||'', physGrnNo:o.physGrnNo||'', physGrnDate:o.physGrnDate||'',
+      vendorInvoiceNum:o.vendorInvoiceNum||'', vendorInvoiceDate:o.vendorInvoiceDate||'',
+      remark:o.remark||'', comments:o.comments||[],
+      transitDetails:o.transitDetails||{},
+      isStockAddition:o.isStockAddition||false, linkedToOrderId:o.linkedToOrderId||null,
+      createdBy:o.createdBy||'',
     };
   }
 
@@ -14949,6 +14983,7 @@ function _updateChipStates(){
       }
       orders=all.map(_toLocal);
       if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+      orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap — prevents re-syncing unchanged orders on first save */
     }catch(e){console.warn('orders:',e);}
 
     try{
@@ -15368,6 +15403,19 @@ function _updateChipStates(){
       setTimeout(()=>location.reload(), 1500);
     };
     reader.readAsText(file);
+  };
+
+  /* ════ OVERRIDE: setOrdStageFilter — persist status filter across refresh ════ */
+  const _origSetOrdStage = window.setOrdStageFilter;
+  window.setOrdStageFilter = function(stage){
+    if(typeof _origSetOrdStage==='function') _origSetOrdStage.call(this, stage);
+    try{ sessionStorage.setItem(_ORD_FILTER_KEY, JSON.stringify(colFilters||{})); }catch(e){}
+  };
+  /* Also clear saved filter when navigating to all orders (e.g. from dashboard) */
+  const _origFilterAndGo = window.filterAndGoOrders;
+  window.filterAndGoOrders = function(status){
+    if(typeof _origFilterAndGo==='function') _origFilterAndGo.call(this, status);
+    try{ sessionStorage.setItem(_ORD_FILTER_KEY, status ? JSON.stringify({status}) : '{}'); }catch(e){}
   };
 
   /* ════ OVERRIDE: _applyMasterImport — sync bulk-imported records to API ════ */
