@@ -16,7 +16,7 @@ const NAV = [
 
 const SETTINGS_NAV = [
   { to: '/settings/users',       icon: '👥', label: 'Users',           perm: 'manageUsers' },
-  { to: '/settings/permissions', icon: '🔐', label: 'Permissions',     perm: 'manageRoles' },
+  { to: '/settings/permissions', icon: '🔐', label: 'Permissions',     perm: 'manageRoles', roles: ['superadmin', 'admin'] },
   { to: '/settings/masters',     icon: '🗂', label: 'Masters',         perm: 'viewMaster' },
 ];
 
@@ -29,6 +29,8 @@ export default function Sidebar() {
   const handleLogout = () => { dispatch(logout()); navigate('/login'); };
 
   if (!open) return null;
+
+  const navFilter = (n) => (!n.perm || can(n.perm)) && (!n.roles || n.roles.includes(user?.role));
 
   return (
     <aside className="w-60 min-h-screen bg-white border-r border-slate-100 flex flex-col shrink-0">
@@ -54,12 +56,12 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {SETTINGS_NAV.some(n => can(n.perm)) && (
+        {SETTINGS_NAV.some(navFilter) && (
           <>
             <div className="pt-4 pb-1 px-3">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Settings</span>
             </div>
-            {SETTINGS_NAV.filter(n => can(n.perm)).map(n => (
+            {SETTINGS_NAV.filter(navFilter).map(n => (
               <NavLink key={n.to} to={n.to} className={({ isActive }) =>
                 `sidebar-item ${isActive ? 'sidebar-active' : ''}`
               }>
