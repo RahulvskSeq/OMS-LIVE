@@ -10123,29 +10123,39 @@ function beWipeEverything(){
   _showWipeModal(
     '💥 Wipe EVERYTHING',
     'Deletes all orders, products, customers, vendors, users (except Super Admin), custom roles, permission overrides, audit logs, and settings.',
-    ()=>{
-      // Orders
-      orders=orders.filter(()=>false);nextOrderId=61;
-      try{localStorage.removeItem(LS_KEY);localStorage.removeItem(LS_ID_KEY);}catch(e){}
-      // Masters
+    async ()=>{
+      showToast('⏳ Wiping database…','info');
+      // ── 1. Wipe MongoDB via API ──────────────────────────────
+      try{
+        const tok=localStorage.getItem('stencil_jwt_v1');
+        const r=await fetch('https://web-production-3ead93.up.railway.app/api/admin/wipe-all',{
+          method:'DELETE',
+          headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'}
+        });
+        if(!r.ok){ const d=await r.json(); console.warn('Wipe API error:',d.message); }
+      }catch(e){ console.warn('Wipe API call failed:',e); }
+      // ── 2. Clear all localStorage & pending queue ────────────
+      try{
+        localStorage.removeItem(LS_KEY);
+        localStorage.removeItem(LS_ID_KEY);
+        localStorage.removeItem('stencil_pending_v1');
+        localStorage.removeItem(LS_AUDIT);
+        localStorage.removeItem(LS_AUDIT_ID);
+      }catch(e){}
+      // ── 3. Clear in-memory state ─────────────────────────────
+      orders.length=0; nextOrderId=1001;
       products.length=0; nextId.product=1;
       customers.length=0; nextId.customer=1;
       vendors.length=0; nextId.vendor=1;
-      // Users (keep superadmin)
       const sa=users.find(u=>u.role==='superadmin');
       users.length=0; if(sa)users.push(sa); nextId.user=sa?sa.id+1:2;
-      // Roles & overrides
       customRoles.length=0; saveCustomRoles();
       userPermOverrides={}; saveUserPermOverrides();
-      // Audit log
       auditLogs.length=0; auditNextId=1;
-      try{localStorage.removeItem(LS_AUDIT);localStorage.removeItem(LS_AUDIT_ID);}catch(e){}
-      // Settings
       sysSettings={appName:'Pending Order Management System',companyName:'',timezone:'Asia/Kolkata'};
       saveSettings();
-      audit('FULL_WIPE','Complete data wipe performed by superadmin','system','');
-      showToast('✅ All data wiped. Refreshing…','success');
-      setTimeout(()=>location.reload(),1500);
+      showToast('✅ All data wiped from database. Refreshing…','success');
+      setTimeout(()=>location.reload(),1800);
     }
   );
 }
