@@ -14960,6 +14960,24 @@ function _updateChipStates(){
     };
   }
 
+  /* ── Pending sync queue: order IDs changed locally but not yet confirmed by API ── */
+  const _PENDING_KEY = 'stencil_pending_v1';
+  function _markPending(ids){
+    try{
+      const cur=JSON.parse(localStorage.getItem(_PENDING_KEY)||'[]');
+      const merged=[...new Set([...cur,...ids])];
+      if(merged.length) localStorage.setItem(_PENDING_KEY,JSON.stringify(merged));
+    }catch(e){}
+  }
+  function _clearPending(id){
+    try{
+      const cur=JSON.parse(localStorage.getItem(_PENDING_KEY)||'[]');
+      const filtered=cur.filter(x=>x!==id);
+      if(filtered.length) localStorage.setItem(_PENDING_KEY,JSON.stringify(filtered));
+      else localStorage.removeItem(_PENDING_KEY);
+    }catch(e){}
+  }
+
   /* ── load all master data from API ── */
   async function _loadAll(){
     try{
@@ -14970,7 +14988,48 @@ function _updateChipStates(){
       }
       orders=all.map(_toLocal);
       if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
-      orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap — prevents re-syncing unchanged orders on first save */
+      orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap */
+
+      /* ── Restore any pending local changes that didn't make it to API ── */
+      try{
+        const pendingIds=JSON.parse(localStorage.getItem(_PENDING_KEY)||'[]');
+        if(pendingIds.length){
+          const lsOrders=JSON.parse(localStorage.getItem('oms_orders_v3')||'[]');
+          for(const pid of pendingIds){
+            const lsOrd=lsOrders.find(o=>o.id===pid);
+            if(!lsOrd) continue;
+            const idx=orders.findIndex(o=>o.id===pid);
+            if(idx>=0){
+              /* Override API version with local version — local is more recent */
+              const merged={...orders[idx],...lsOrd, _id:orders[idx]._id||lsOrd._id};
+              orders[idx]=merged;
+              _snap[pid]=null; /* force re-sync */
+            } else {
+              /* New order not yet in API */
+              orders.push({...lsOrd});
+            }
+          }
+          /* Re-seed nextOrderId to account for any local orders */
+          if(orders.length>0) nextOrderId=Math.max(nextOrderId,...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+          /* Push pending to API in background immediately */
+          setTimeout(async()=>{
+            for(const pid of [...pendingIds]){
+              const o=orders.find(x=>x.id===pid);
+              if(!o) continue;
+              try{
+                if(!o._id){
+                  const r=await _req('POST','/api/orders',_toAPI(o));
+                  if(r.data){o._id=r.data._id;}
+                }else{
+                  await _req('PUT','/api/orders/'+o._id,_toAPI(o));
+                }
+                _snap[o.id]=JSON.stringify(o);
+                _clearPending(pid);
+              }catch(ex){console.warn('pending sync fail:',ex);}
+            }
+          },200);
+        }
+      }catch(ex){console.warn('pending restore:',ex);}
     }catch(e){console.warn('orders:',e);}
 
     try{
@@ -15261,6 +15320,7 @@ function _updateChipStates(){
           await _req('PUT','/api/orders/'+o._id,_toAPI(o));
         }
         _snap[o.id]=JSON.stringify(o);
+        _clearPending(o.id); /* confirmed by API — remove from pending queue */
       }catch(e){console.warn('order sync:',e);}
     }
   }
@@ -15268,8 +15328,14 @@ function _updateChipStates(){
   /* ════ OVERRIDE: persistOrders ════ */
   window.persistOrders=function(){
     try{localStorage.setItem('oms_orders_v3',JSON.stringify(orders));localStorage.setItem('oms_next_id',String(nextOrderId));}catch(e){}
+    /* Mark all dirty orders as pending BEFORE async sync — survives refresh */
+    try{
+      const dirtyIds=orders.filter(o=>!_snap[o.id]||_snap[o.id]!==JSON.stringify(o)).map(o=>o.id);
+      if(dirtyIds.length) _markPending(dirtyIds);
+    }catch(e){}
     clearTimeout(_syncTimer);
-    _syncOrders(); /* sync immediately — removing 800ms debounce prevents data loss on refresh */
+    /* Sync immediately — clear pending flag per order after each successful PUT/POST */
+    _syncOrders().then&&_syncOrders(); /* fire-and-forget with pending queue as safety net */
   };
 
   /* ════ OVERRIDE: saveCustomer ════ */
