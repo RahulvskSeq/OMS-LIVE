@@ -15269,7 +15269,7 @@ function _updateChipStates(){
   window.persistOrders=function(){
     try{localStorage.setItem('oms_orders_v3',JSON.stringify(orders));localStorage.setItem('oms_next_id',String(nextOrderId));}catch(e){}
     clearTimeout(_syncTimer);
-    _syncTimer=setTimeout(_syncOrders,800);
+    _syncOrders(); /* sync immediately — removing 800ms debounce prevents data loss on refresh */
   };
 
   /* ════ OVERRIDE: saveCustomer ════ */
