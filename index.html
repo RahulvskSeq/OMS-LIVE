@@ -14999,30 +14999,37 @@ function _updateChipStates(){
       let usr = users.find(u=>u.username===cachedUsr.username);
       if(!usr){ usr={id:cachedUsr.id,username:cachedUsr.username,name:cachedUsr.name||cachedUsr.username,role:cachedUsr.role,password:''}; users.push(usr); }
       usr.role=cachedUsr.role; usr.name=cachedUsr.name||cachedUsr.username; usr.id=cachedUsr.id;
-      _launchApp(usr, cachedUsr);  /* ← app visible immediately */
+      _authReady=true; currentUser=usr;
+      _applyPerms({id:usr.id,permissions:cachedUsr.permissions||[]});
+      try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(ex){}
 
-      /* Background validation — don't block the UI */
-      setTimeout(async ()=>{
-        try{
-          const r=await _req('GET','/api/auth/me');
+      /* Show app shell immediately (login screen hidden — no flash ever) */
+      const _showShell=()=>{
+        document.getElementById('loginScreen').style.display='none';
+        document.getElementById('app').style.display='block';
+      };
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_showShell,{once:true});
+      else _showShell();
+
+      /* Load data from API, then render — data-race free */
+      _loadAll().then(()=>{
+        if(typeof _origInitApp==='function') _origInitApp.call(window);
+        /* After rendering, validate JWT quietly in background */
+        _req('GET','/api/auth/me').then(r=>{
           const au=r.user;
-          /* Update cache with fresh data */
           let u2=users.find(u=>u.username===au.username);
           if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2.id=au._id||au.id; }
           localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
-          _loadAll(); /* refresh master data silently */
-        }catch(e){
+        }).catch(e=>{
           if(e.status===401){
-            /* Token truly invalid — force logout */
-            localStorage.removeItem(_JWT_KEY);
-            localStorage.removeItem(_USR_KEY);
-            _authReady=false;
-            if(typeof doLogout==='function') doLogout();
-            else { currentUser=null; document.getElementById('loginScreen').style.display='flex'; document.getElementById('app').style.display='none'; }
+            localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
+            _authReady=false; window.doLogout ? window.doLogout() : location.reload();
           }
-          /* Network errors: stay logged in, data may be slightly stale */
-        }
-      }, 500);
+        });
+      }).catch(()=>{
+        /* _loadAll failed (Railway down) — render with whatever localStorage has */
+        if(typeof _origInitApp==='function') _origInitApp.call(window);
+      });
       return;
     }
 
@@ -15188,6 +15195,70 @@ function _updateChipStates(){
       if(trans._id){await _req('PUT','/api/transporters/'+trans._id,pl);}
       else{const r=await _req('POST','/api/transporters',pl);if(r.data)trans._id=r.data._id;}
     }catch(e){console.warn('transporter sync:',e);}
+  };
+
+  /* ════ OVERRIDE: _doRestoreFromFile — sync restored data to API ════
+     The original only writes to localStorage then reloads.
+     We intercept it: after writing localStorage, also push everything to MongoDB.
+  ═══════════════════════════════════════════════════════════════════ */
+  const _origRestoreFromFile = window._doRestoreFromFile;
+  window._doRestoreFromFile = function(file){
+    const reader = new FileReader();
+    reader.onload = async function(e){
+      let d;
+      try{ d = JSON.parse(e.target.result); }
+      catch(err){ if(typeof showToast==='function') showToast('❌ Failed to read file: '+err.message,'error'); return; }
+      if(!d.orders){ if(typeof showToast==='function') showToast('⚠️ Invalid backup file — missing orders data','error'); return; }
+      const exportedOn = d.exportedAt ? new Date(d.exportedAt).toLocaleString('en-IN') : 'unknown date';
+      const exportedBy = d.exportedBy || 'unknown';
+      if(!confirm('Restore backup?\n\nExported: '+exportedOn+'\nBy: '+exportedBy+'\n\nThis will REPLACE all current data and reload the page.')) return;
+
+      /* 1 ── Write to localStorage (same as original) */
+      try{localStorage.setItem('oms_orders_v1',JSON.stringify(d.orders||[]));}catch(ex){}
+      try{localStorage.setItem('oms_nextOrderId_v1',String(d.nextOrderId||1));}catch(ex){}
+      try{localStorage.setItem('oms_users_v1',JSON.stringify(d.users||[]));}catch(ex){}
+      try{localStorage.setItem('vendors_v2',JSON.stringify(d.vendors||[]));}catch(ex){}
+      try{localStorage.setItem('customers_v2',JSON.stringify(d.customers||[]));}catch(ex){}
+      try{localStorage.setItem('products_v2',JSON.stringify(d.products||[]));}catch(ex){}
+      try{localStorage.setItem('tranvporters_v1',JSON.stringify(d.tranvporters||[]));}catch(ex){}
+      try{localStorage.setItem('oms_nextProductId',String(d.nextProductId||1));}catch(ex){}
+      try{localStorage.setItem('oms_nextTranvporterId',String(d.nextTranvporterId||1));}catch(ex){}
+      try{localStorage.setItem('oms_demo_seeded_v1','1');}catch(ex){}
+      try{localStorage.setItem('oms_data_version','2');}catch(ex){}
+      if(d.nextId) try{localStorage.setItem('oms_nextId_v1',JSON.stringify(d.nextId));}catch(ex){}
+
+      /* 2 ── Sync to MongoDB API */
+      if(typeof showToast==='function') showToast('⏳ Syncing to server… please wait','info');
+      let synced=0, failed=0;
+
+      /* Clear existing API data first so we don't get duplicates */
+      /* (skip — we can't bulk-delete easily; rely on POST creating new records) */
+
+      for(const c of (d.customers||[])){
+        try{ await _req('POST','/api/customers',{name:c.name||'',phone:c.phone||'',email:c.email||'',address:c.addr||c.address||'',city:c.city||'',contact:c.contact||'',whatsapp:c.whatsapp||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''}); synced++; }
+        catch(ex){ failed++; }
+      }
+      for(const v of (d.vendors||[])){
+        try{ await _req('POST','/api/suppliers',{name:v.name||'',city:v.location||'',leadTimeDays:v.deliveryDays||7,phone:v.phone||'',whatsapp:v.whatsapp||'',contact:v.contact||''}); synced++; }
+        catch(ex){ failed++; }
+      }
+      for(const p of (d.products||[])){
+        try{ await _req('POST','/api/products',{name:p.name||'',code:p.code||'',category:p.category||'',unit:p.unit||'pcs',defaultVendor:p.defaultVendor||'',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''}); synced++; }
+        catch(ex){ failed++; }
+      }
+      for(const t of (d.tranvporters||[])){
+        try{ await _req('POST','/api/transporters',{name:t.name||'',type:t.type||'',city:t.location||'',avgTransitDays:t.transitDays||0,phone:t.phone||'',contact:t.contact||'',whatsapp:t.whatsapp||'',notes:t.notes||''}); synced++; }
+        catch(ex){ failed++; }
+      }
+      for(const o of (d.orders||[])){
+        try{ await _req('POST','/api/orders',_toAPI(o)); synced++; }
+        catch(ex){ failed++; }
+      }
+
+      if(typeof showToast==='function') showToast('✅ Synced '+synced+' records to server'+(failed?' ('+failed+' failed)':'')+'— reloading…','success');
+      setTimeout(()=>location.reload(), 1500);
+    };
+    reader.readAsText(file);
   };
 
   /* ── Start async session restore ── */
