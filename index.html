@@ -14822,11 +14822,26 @@ function _updateChipStates(){
     _origInitApp.call(this);
   };
 
-  /* ── Call _origInitApp safely after data is loaded ── */
+  /* ── Save/restore current page across refreshes ── */
+  const _PAGE_KEY = 'stencil_page_v1';
+  const _origNavTo = window.navTo;
+  window.navTo = function(page, ...args){
+    try{ sessionStorage.setItem(_PAGE_KEY, page); }catch(e){}
+    if(typeof _origNavTo === 'function') return _origNavTo.call(this, page, ...args);
+  };
+
+  /* ── Call _origInitApp safely after data is loaded, then restore page ── */
   function _renderApp(){
     _dataReady = true;
     _initPending = false;
     if(typeof _origInitApp === 'function') _origInitApp.call(window);
+    /* After initApp navigates to dashboard, go back to where user was */
+    try{
+      const savedPage = sessionStorage.getItem(_PAGE_KEY);
+      if(savedPage && savedPage !== 'dashboard' && typeof _origNavTo === 'function'){
+        setTimeout(()=>_origNavTo.call(window, savedPage), 50);
+      }
+    }catch(e){}
   }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
