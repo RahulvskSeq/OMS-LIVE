@@ -15380,6 +15380,60 @@ function _updateChipStates(){
     reader.readAsText(file);
   };
 
+  /* ════ OVERRIDE: _applyMasterImport — sync bulk-imported records to API ════ */
+  const _origApplyImport = window._applyMasterImport;
+  window._applyMasterImport = async function(){
+    /* Capture state BEFORE the import modifies arrays */
+    const type  = _mapperState && _mapperState.type;
+    const mode  = (document.querySelector('input[name="imMode"]:checked')||{value:'add'}).value;
+    const prevIds = type ? new Set((
+      type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:tranvporters
+    ).map(r=>r.id)) : new Set();
+
+    /* Run the original import (modifies arrays + localStorage) */
+    if(typeof _origApplyImport==='function') _origApplyImport.call(this);
+    else return;
+
+    if(!type) return;
+
+    /* Endpoint + payload builders — mirror what restore-file-sync uses */
+    const epMap = {
+      customers:    '/api/customers',
+      vendors:      '/api/suppliers',
+      products:     '/api/products',
+      tranvporters: '/api/transporters'
+    };
+    const plMap = {
+      customers:    r=>({name:r.name||'',phone:r.phone||'',email:r.email||'',address:r.addr||r.address||'',city:r.city||'',contact:r.contact||'',whatsapp:r.whatsapp||'',salesExec:r.salesExec||'',biller:r.biller||'',manager:r.manager||''}),
+      vendors:      r=>({name:r.name||'',city:r.location||'',leadTimeDays:parseInt(r.deliveryDays)||7,phone:r.phone||'',whatsapp:r.whatsapp||'',contact:r.contact||''}),
+      products:     r=>({name:r.name||r.code||'',code:r.code||'',category:r.category||'',unit:r.unit||'pcs',defaultVendor:r.defaultVendor||'',parentCode:r.parentCode||'',parentAlias:r.parentAlias||''}),
+      tranvporters: r=>({name:r.name||'',type:r.type||'',city:r.location||'',avgTransitDays:parseInt(r.transitDays)||0,phone:r.phone||'',contact:r.contact||'',whatsapp:r.whatsapp||'',notes:r.notes||''})
+    };
+
+    const ep   = epMap[type];
+    const mkPl = plMap[type];
+    if(!ep || !mkPl) return;
+
+    const arr     = type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:tranvporters;
+    /* New records: added this session (id wasn't in array before) and have no _id yet */
+    const newRecs = arr.filter(r => !prevIds.has(r.id) && !r._id);
+    if(!newRecs.length) return;
+
+    if(typeof showToast==='function') showToast('⏳ Syncing '+newRecs.length+' records to server…','info');
+    let ok=0, fail=0;
+    for(const rec of newRecs){
+      try{
+        const res = await _req('POST', ep, mkPl(rec));
+        if(res && res.data && res.data._id) rec._id = res.data._id;
+        ok++;
+      }catch(e){ fail++; console.warn('bulk-import sync err:',e); }
+    }
+    if(typeof showToast==='function'){
+      const msg = fail ? '⚠️ Synced '+ok+', failed '+fail : '✅ Synced '+ok+' records to server';
+      showToast(msg, fail?'warning':'success');
+    }
+  };
+
   /* ── Start async session restore ── */
   _restoreSession();
 
