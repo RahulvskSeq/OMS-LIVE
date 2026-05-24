@@ -2476,6 +2476,7 @@ const _LABEL_DEFAULTS={
   'status.Purchased':      'Purchased',
   'status.Billed':         'Billed',
   'status.Cancelled':      'Cancelled',
+  'status.Cancel':         'Cancelled',
   // ── Orders table column headers ──
   'col.id':        '#',
   'col.customer':  'Customer / Product',
@@ -6441,7 +6442,7 @@ function renderOrdersTable(){
   const wrap=document.getElementById('ordersTableWrap');
   wrap.innerHTML='';
   _ordersAppendBatch();
-  document.getElementById('ordPagnInfo').textContent=`${data.length} orders total`;
+  {const _pi=document.getElementById('ordPagnInfo');if(_pi)_pi.textContent=`${data.length} orders total`;}
   _updateOrdCountBar();
   _ordersSetupScroll();
 }
@@ -6473,7 +6474,7 @@ function _ordersAppendBatch(){
   _ordersLoadedCount+=batch.length;
   const loader=document.getElementById('ordInfiniteLoader');
   if(loader) loader.style.display=_ordersLoadedCount<_ordersFullData.length?'block':'none';
-  document.getElementById('ordPagnInfo').textContent=`Showing ${_ordersLoadedCount} of ${_ordersFullData.length} orders`;
+  {const _pi=document.getElementById('ordPagnInfo');if(_pi)_pi.textContent=`Showing ${_ordersLoadedCount} of ${_ordersFullData.length} orders`;}
   _updateOrdCountBar();
   _updateChipStates();
 }
@@ -6640,7 +6641,7 @@ function buildTransitInfo(o){
   const formShort=t.form==='Roll'?'Roll':'Flat';
   return`<div style="margin-top:5px;font-size:11px;color:#475569;line-height:1.5;white-space:normal;max-width:160px">
     <span style="display:block">${modeIcon} <strong>${modeShort}</strong> · ${formIcon} ${formShort}</span>
-    <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#1a73e8;font-weight:600">📦 ${t.vendor}</span>${t.lr?`<span style="color:#7c3aed;font-weight:700;margin-left:4px">· 🧾${t.lr}${t.lrDate?' '+t.lrDate:''}</span>`:''}</span>
+    <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:#1a73e8;font-weight:600">📦 ${t.vendor||'—'}</span>${t.lr?`<span style="color:#7c3aed;font-weight:700;margin-left:4px">· 🧾${t.lr}${t.lrDate?' '+t.lrDate:''}</span>`:''}</span>
   </div>`;
 }
 const PO_LOCK_IDX=STATUSES.indexOf('In Transit'); // Order, Approved, PO Raised are all editable
@@ -14922,7 +14923,7 @@ function _updateChipStates(){
       orderedCode:o.orderedCode||'', vendor:o.vendor||'',
       qty:o.qty||0, unit:o.unit||'pcs',
       orderDate:o.orderDate?o.orderDate.split('T')[0]:'',
-      eta:o.eta||'', status:o.status||'Order',
+      eta:o.eta||'', status:(o.status==='Cancel'?'Cancelled':o.status)||'Order',
       lr:o.lr||'', lrDate:o.lrDate||'',
       transporter:o.transporter||'',
       purchaseRate:o.purchaseRate||0, sellingRate:o.sellingRate||0,
@@ -15090,10 +15091,11 @@ function _updateChipStates(){
     try{
       const r=await _req('GET','/api/users');
       if((r.data||[]).length>0){
-        users=(r.data||[]).map(u=>({
-          id:u._id,username:u.username,
-          name:u.name||u.username,role:u.role,password:''
+        users=(r.data||[]).map((u,i)=>({
+          id:i+1,_id:u._id,username:u.username,
+          name:u.name||u.username,role:u.role,biller:u.biller||'',password:''
         }));
+        if(users.length>0) nextId.user=users.length+1;
         if(currentUser){
           const f=users.find(u=>u.username===currentUser.username);
           if(f) Object.assign(currentUser,f);
