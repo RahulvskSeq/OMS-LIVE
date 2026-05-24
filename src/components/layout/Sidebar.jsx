@@ -15,9 +15,9 @@ const NAV = [
 ];
 
 const SETTINGS_NAV = [
-  { to: '/settings/users',       icon: '👥', label: 'Users',           perm: 'manageUsers' },
-  { to: '/settings/permissions', icon: '🔐', label: 'Permissions',     perm: 'manageRoles' },
-  { to: '/settings/masters',     icon: '🗂', label: 'Masters',         perm: 'viewMaster' },
+  { to: '/settings/users',       icon: '👥', label: 'Users',       perm: 'manageUsers' },
+  { to: '/settings/permissions', icon: '🔐', label: 'Permissions', perm: 'manageRoles', roles: ['superadmin','admin'] },
+  { to: '/settings/masters',     icon: '🗂', label: 'Masters',     perm: 'viewMaster' },
 ];
 
 export default function Sidebar() {
@@ -54,19 +54,21 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {SETTINGS_NAV.some(n => can(n.perm)) && (
+        {SETTINGS_NAV.some(n => (!n.perm || can(n.perm)) && (!n.roles || n.roles.includes(user?.role))) && (
           <>
             <div className="pt-4 pb-1 px-3">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Settings</span>
             </div>
-            {SETTINGS_NAV.filter(n => can(n.perm)).map(n => (
-              <NavLink key={n.to} to={n.to} className={({ isActive }) =>
-                `sidebar-item ${isActive ? 'sidebar-active' : ''}`
-              }>
-                <span className="text-base">{n.icon}</span>
-                <span>{n.label}</span>
-              </NavLink>
-            ))}
+            {SETTINGS_NAV
+              .filter(n => (!n.perm || can(n.perm)) && (!n.roles || n.roles.includes(user?.role)))
+              .map(n => (
+                <NavLink key={n.to} to={n.to} className={({ isActive }) =>
+                  `sidebar-item ${isActive ? 'sidebar-active' : ''}`
+                }>
+                  <span className="text-base">{n.icon}</span>
+                  <span>{n.label}</span>
+                </NavLink>
+              ))}
           </>
         )}
       </nav>
