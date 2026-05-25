@@ -1774,8 +1774,6 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
         <option value="biller">Biller — Create orders, Invoice</option>
         <option value="salesman">Salesman — View only</option>
       </select></div>
-    <div class="fg"><label>Assigned To (Biller name for Biller role)</label>
-      <input id="umBiller" type="text" placeholder="e.g. SIRI (for billers)"></div>
     <div class="frow">
       <div class="fg"><label>Department</label>
         <select id="umDept" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
@@ -9132,7 +9130,7 @@ function _umRoleChanged(){
 function openUserModal(id=null){
   editingUser=id;
   document.getElementById('userModalTitle').textContent=id?'Edit User':'Add User';
-  ['umName','umUser','umPwd','umBiller'].forEach(i=>document.getElementById(i).value='');
+  ['umName','umUser','umPwd'].forEach(i=>document.getElementById(i).value='');
   const builtInRoleOpts=['superadmin','admin','manager','teamlead','logistics','purchase','biller','salesman']
     .map(r=>`<option value="${r}">${ROLE_LABELS[r]||r}</option>`).join('');
   const customRoleOpts=customRoles.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
@@ -9147,7 +9145,7 @@ function openUserModal(id=null){
     const u=users.find(x=>x.id===id);if(!u)return;
     document.getElementById('umName').value=u.name;document.getElementById('umUser').value=u.username;
     document.getElementById('umPwd').value=u.password||'';document.getElementById('umRole').value=u.role;
-    document.getElementById('umBiller').value=u.biller||'';
+
     if(deptSel) deptSel.value=u.departmentId||u.department||'';
     if(tlSel) tlSel.value=u.teamLeadId||'';
     _umRoleChanged();
@@ -9167,12 +9165,11 @@ function saveUser(){
   const tlName=users.find(u=>(u.id||u._id)==tlId)?.name||'';
   if(editingUser){
     const u=users.find(x=>x.id===editingUser);
-    if(u){u.name=name;u.username=username;if(password)u.password=password;u.role=role;u.biller=document.getElementById('umBiller').value;
-      u.departmentId=deptId;u.departmentName=deptName;u.teamLeadId=tlId;u.teamLeadName=tlName;}
+    if(u){u.name=name;u.username=username;if(password)u.password=password;u.role=role;u.departmentId=deptId;u.departmentName=deptName;u.teamLeadId=tlId;u.teamLeadName=tlName;}
     audit('USER_EDITED',`User updated: ${name} (${username}) · Role: ${getRoleLabel(role)}`,'user',editingUser);
   }else{
     if(users.find(x=>x.username===username)){showToast('Username already exists','error');return;}
-    const newU={id:nextId.user++,name,username,password,role,biller:document.getElementById('umBiller').value,
+    const newU={id:nextId.user++,name,username,password,role,
       departmentId:deptId,departmentName:deptName,teamLeadId:tlId,teamLeadName:tlName};
     users.push(newU);
     audit('USER_CREATED',`New user created: ${name} (${username}) · Role: ${getRoleLabel(role)}`,'user',newU.id);
