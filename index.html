@@ -902,7 +902,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
               <div style="display:flex;gap:4px;flex-shrink:0">
                 <button id="etaTabAll"      onclick="_setEtaTab('all')"      style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:#e2e8f0;color:#64748b;transition:all .15s">All</button>
                 <button id="etaTabDelayed"  onclick="_setEtaTab('delayed')"  style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🔴 Delayed</button>
-                <button id="etaTabPrepared" onclick="_setEtaTab('prepared')" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🟢 Preponed</button>
+                <button id="etaTabPrepared" onclick="_setEtaTab('prepared')" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🟢 May arrive early</button>
               </div>
             </div>
             <!-- Stats bar -->
@@ -5210,7 +5210,7 @@ function renderEtaEditedCard(){
     var colors={all:'#1e293b',delayed:'#dc2626',prepared:'#16a34a'};
     btn.style.background=active?colors[tab]:'transparent';
     btn.style.color=active?'#fff':'#94a3b8';
-    btn.textContent = tab==='all'?'All '+cnt : tab==='delayed'?'🔴 Delayed '+delayedCount:'🟢 Preponed '+preparedCount;
+    btn.textContent = tab==='all'?'All '+cnt : tab==='delayed'?'🔴 Delayed '+delayedCount:'🟢 May arrive early '+preparedCount;
   });
 
   // Stats bar
@@ -5311,7 +5311,7 @@ function renderEtaEditedCard(){
 
     // Row top: flag pill + DON + customer + status badge + expand icon
     html+='<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">';
-    html+='<span style="background:'+borderColor+'18;color:'+borderColor+';border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800">'+(isDelayed?'🔴 Delayed':'🟢 Preponed')+'</span>';
+    html+='<span style="background:'+borderColor+'18;color:'+borderColor+';border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800">'+(isDelayed?'🔴 Delayed':'🟢 May arrive early')+'</span>';
     html+='<span style="font-size:12px;font-weight:800;color:#1a73e8">'+donStr+'</span>';
     html+='<span style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+_escHtml(o.customer||'—')+'</span>';
     html+='<span style="flex:1"></span>';
