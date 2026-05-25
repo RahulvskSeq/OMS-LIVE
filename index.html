@@ -1162,9 +1162,10 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
             <h3>📤 Supplier Purchase Orders</h3>
             <div style="font-size:12px;color:#64748b;margin-top:3px">Manage supplier orders — Approved &amp; PO Raised</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span id="vpoApprovedCount" style="background:#0ea5e922;color:#0ea5e9;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px"></span>
             <span id="vpoRaisedCount" style="background:#16a34a22;color:#16a34a;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px"></span>
+            <div style="position:relative;display:flex;align-items:center"><span style="position:absolute;left:9px;font-size:13px;color:#94a3b8;pointer-events:none">🔍</span><input type="text" id="vpoSearch" placeholder="Search customer, product, vendor…" oninput="window._vpoSearchQ=this.value.trim().toLowerCase();renderVendorPO();" style="border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px 5px 30px;font-size:12px;outline:none;width:220px;color:#334155;background:#f8fafc;transition:border .15s" onfocus="this.style.borderColor='#0ea5e9';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"/></div>
             <button class="btn btn-success btn-sm" onclick="generateVendorPOExcel()">📊 Download PO Excel</button>
           </div>
         </div>
@@ -11976,8 +11977,10 @@ function copyVPOSummary(vpoNum, btn){
 }
 
 function renderVendorPO(){
-  const approved=orders.filter(o=>o.status==='Approved');
-  const raised=orders.filter(o=>o.status==='PO Raised');
+  const _vq=window._vpoSearchQ||'';
+  const _vpoMatch=o=>!_vq||(o.customer||'').toLowerCase().includes(_vq)||(o.product||'').toLowerCase().includes(_vq)||(o.vendor||'').toLowerCase().includes(_vq)||(o.donNo||o.seqId||'').toString().includes(_vq);
+  const approved=orders.filter(o=>o.status==='Approved'&&_vpoMatch(o));
+  const raised=orders.filter(o=>o.status==='PO Raised'&&_vpoMatch(o));
   const countEl=document.getElementById('vpoApprovedCount');
   const raisedEl=document.getElementById('vpoRaisedCount');
   const badgeA=document.getElementById('vpoTabApprovedBadge');
