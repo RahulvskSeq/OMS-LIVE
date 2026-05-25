@@ -2345,6 +2345,8 @@ function generatePoNum(){
   const mm=String(d.getMonth()+1).padStart(2,'0');
   return`SPO-${n} ${dd}/${mm}`;
 }
+// Normalise legacy "VPO-" prefix to "SPO-" for display
+function _spo(v){ return (v||'').replace(/^VPO-/i,'SPO-'); }
 
 // ── localStorage persistence ──
 // Clear any cached demo data from old sessions
@@ -4744,7 +4746,7 @@ function openSupplierPopup(vendorName){
       return`<tr style="border-bottom:1px solid #f1f5f9" onclick="closeModal('supplierPopup');viewOrder(${o.id});" class="cursor-pointer">
         <td style="padding:11px 14px;font-size:10px;font-family:monospace;white-space:nowrap">
           <div style="font-weight:800;color:#1e293b">DON-${o.groupDonId||o.id} ${dd}/${mm}</div>
-          ${o.vendorPoNum?`<div style="font-size:10px;color:#0891b2;font-weight:700;margin-top:1px">${o.vendorPoNum}</div>`:''}
+          ${o.vendorPoNum?`<div style="font-size:10px;color:#0891b2;font-weight:700;margin-top:1px">${_spo(o.vendorPoNum)}</div>`:''}
         </td>
         <td style="padding:11px 14px;font-size:12px;font-weight:700;color:#1e293b">${o.customer||'—'}</td>
         <td style="padding:11px 14px">
@@ -5672,7 +5674,7 @@ function dealerPopupWhatsApp(){
   const lines=ords.map(o=>{
     const etaStr=o.eta?fmt(o.eta):'No ETA';
     const d=new Date(o.orderDate),dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0');
-    return`• DON-${o.groupDonId||o.id} ${dd}/${mm}${o.vendorPoNum?' | SPO: '+o.vendorPoNum:''}  |  ${o.product} × ${o.qty}  |  ETA: ${etaStr}  |  ${o.status}`;
+    return`• DON-${o.groupDonId||o.id} ${dd}/${mm}${o.vendorPoNum?' | SPO: '+_spo(o.vendorPoNum):''}  |  ${o.product} × ${o.qty}  |  ETA: ${etaStr}  |  ${o.status}`;
   }).join('\n');
   const text=`Hi ${custName},\n\nHere's an update on your pending orders:\n\n${lines}\n\nRegards,\n${senderName}`;
 
@@ -6866,7 +6868,7 @@ function _transitBuildOrderRows(primaryOrders, excludeIds=[]){
           <div style="flex:1;min-width:0">
             <div style="font-size:11px;font-weight:800;color:#92400e;font-family:monospace">DON-${o.groupDonId||o.id} ${dd}/${mm}</div>
             <div style="font-size:12px;color:#1e293b;font-weight:600">${o.customer} · <span style="color:#1a73e8">${o.orderedCode||o.product}</span> · Qty: <strong>${o.qty}</strong></div>
-            <div style="font-size:10px;color:#b45309">${o.vendorPoNum?'SPO: '+o.vendorPoNum:'No SPO'} · Vendor: ${o.vendor}</div>
+            <div style="font-size:10px;color:#b45309">${o.vendorPoNum?'SPO: '+_spo(o.vendorPoNum):'No SPO'} · Vendor: ${o.vendor}</div>
           </div>
         </label>`;
       }).join('');
@@ -7092,7 +7094,7 @@ function openBulkTransitModal(vpoNum){
   _bulkTransitVpoNum=vpoNum;
   _transitPendingId=null; _transitPendingSelEl=null;
   const vendor=grpOrders[0].vendor||'';
-  document.getElementById('transitSubtitle').textContent=`${vpoNum} · ${grpOrders.length} orders · ${vendor}`;
+  document.getElementById('transitSubtitle').textContent=`${_spo(vpoNum)} · ${grpOrders.length} orders · ${vendor}`;
   _transitResetForm('');
   _transitBuildOrderRows(grpOrders);
   showModal('transitModal');
@@ -10956,7 +10958,7 @@ function renderShipments(){
         <!-- DON + SPO -->
         <td style="padding:10px 12px;white-space:nowrap;font-family:monospace;cursor:pointer" onclick="viewOrder(${o.id})">
           <div style="font-size:10px;font-weight:800;color:#1e293b;transition:color .15s" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#1e293b'">${don}</div>
-          ${o.vendorPoNum?`<div style="font-size:10px;color:#1a73e8;font-weight:800;margin-top:1px">${o.vendorPoNum}</div>`:''}
+          ${o.vendorPoNum?`<div style="font-size:10px;color:#1a73e8;font-weight:800;margin-top:1px">${_spo(o.vendorPoNum)}</div>`:''}
         </td>
         <!-- Product (highlight) / Customer (small) -->
         <td style="padding:10px 12px" class="cust-cell">
@@ -11300,7 +11302,7 @@ function renderDeliveries(){
       return`<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="viewOrder(${o.id})">
         <td style="padding:10px 12px;white-space:nowrap;font-family:monospace">
           <div style="font-size:10px;font-weight:800;color:#1e293b" onmouseover="this.style.color='#1a73e8'" onmouseout="this.style.color='#1e293b'">${don}</div>
-          ${o.vendorPoNum?`<div style="font-size:10px;color:#1a73e8;font-weight:800;margin-top:1px">${o.vendorPoNum}</div>`:''}
+          ${o.vendorPoNum?`<div style="font-size:10px;color:#1a73e8;font-weight:800;margin-top:1px">${_spo(o.vendorPoNum)}</div>`:''}
         </td>
         <td style="padding:10px 12px" class="cust-cell">
           <strong style="display:block;font-size:13px">${o.customer}</strong>
@@ -11830,7 +11832,7 @@ function copyVPOSummary(vpoNum, btn){
   if(!raised.length){showToast('No orders found for '+vpoNum,'warning');return;}
   const vendor=raised[0].vendor;
   const lines=raised.map(o=>`• ${o.product} — Qty: ${o.qty}${o.poNum?' (Ref: '+o.poNum+')':''}`).join('\n');
-  const text=`${vpoNum}\nSupplier: ${vendor}\n\n${lines}`;
+  const text=`${_spo(vpoNum)}\nSupplier: ${vendor}\n\n${lines}`;
   navigator.clipboard.writeText(text).then(()=>{
     if(btn){btn.textContent='✅ Copied!';btn.style.background='#16a34a';btn.style.color='#fff';setTimeout(()=>{btn.textContent='📋 Copy Summary';btn.style.background='';btn.style.color='#16a34a';},2000);}
     showToast('SPO summary copied','success');
@@ -11905,7 +11907,7 @@ function renderVendorPO(){
         </td>
         <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">
           <span onclick="filterByDON(${o.id})" title="View in Orders" style="font-size:10px;font-weight:800;color:#1e293b;font-family:monospace;cursor:pointer;border-radius:4px;padding:1px 4px;transition:background .15s" onmouseover="this.style.background='#e0e7ff';this.style.color='#3730a3'" onmouseout="this.style.background='';this.style.color='#1e293b'">${donLabel}</span>
-          ${o.vendorPoNum?`<div style="margin-top:3px;font-size:10px;font-weight:800;color:#1e293b;font-family:monospace">${o.vendorPoNum}</div>`:''}
+          ${o.vendorPoNum?`<div style="margin-top:3px;font-size:10px;font-weight:800;color:#1e293b;font-family:monospace">${_spo(o.vendorPoNum)}</div>`:''}
         </td>
         <td class="cust-cell" style="padding:10px 12px">
           <strong style="display:block">${o.customer}</strong>
