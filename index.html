@@ -15456,6 +15456,39 @@ function _updateChipStates(){
     catch(e){ console.warn('product delete sync:',e); }
   };
 
+  /* ════ OVERRIDE: delCustomer — remove customer from MongoDB ════ */
+  const _origDelCust = window.delCustomer;
+  window.delCustomer = async function(id){
+    const cust = customers.find(c=>c.id===id);
+    const apiId = cust?._id;
+    _origDelCust.call(this, id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/customers/'+apiId); }
+    catch(e){ console.warn('customer delete sync:',e); }
+  };
+
+  /* ════ OVERRIDE: delVendor — remove vendor from MongoDB ════ */
+  const _origDelVend = window.delVendor;
+  window.delVendor = async function(id){
+    const vend = vendors.find(v=>v.id===id);
+    const apiId = vend?._id;
+    _origDelVend.call(this, id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/suppliers/'+apiId); }
+    catch(e){ console.warn('vendor delete sync:',e); }
+  };
+
+  /* ════ OVERRIDE: delTranvporter — remove transporter from MongoDB ════ */
+  const _origDelTransDel = window.delTranvporter;
+  window.delTranvporter = async function(id){
+    const trans = tranvporters.find(t=>t.id===id);
+    const apiId = trans?._id;
+    _origDelTransDel.call(this, id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/transporters/'+apiId); }
+    catch(e){ console.warn('transporter delete sync:',e); }
+  };
+
   /* ════ OVERRIDE: _doRestoreFromFile — sync restored data to API ════
      The original only writes to localStorage then reloads.
      We intercept it: after writing localStorage, also push everything to MongoDB.
