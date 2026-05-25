@@ -15046,7 +15046,7 @@ function _updateChipStates(){
     }catch(e){console.warn('orders:',e);}
 
     try{
-      const r=await _req('GET','/api/customers?isActive=all');
+      const r=await _req('GET','/api/customers');
       customers=(r.data||[]).map((c,i)=>({
         id:i+1,_id:c._id,name:c.name||'',contact:c.contact||'',
         phone:c.phone||'',whatsapp:c.whatsapp||'',city:c.city||'',
@@ -15057,7 +15057,7 @@ function _updateChipStates(){
     }catch(e){console.warn('customers:',e);}
 
     try{
-      const r=await _req('GET','/api/suppliers?isActive=all');
+      const r=await _req('GET','/api/suppliers');
       vendors=(r.data||[]).map((v,i)=>({
         id:i+1,_id:v._id,name:v.name||'',
         location:v.city||v.address||'',
@@ -15069,7 +15069,7 @@ function _updateChipStates(){
     }catch(e){console.warn('vendors:',e);}
 
     try{
-      const r=await _req('GET','/api/products?isActive=all');
+      const r=await _req('GET','/api/products');
       products=(r.data||[]).map((p,i)=>({
         id:i+1,_id:p._id,code:p.code||'',name:p.name||'',
         category:p.category||'',defaultVendor:p.defaultVendor||'',
@@ -15079,7 +15079,7 @@ function _updateChipStates(){
     }catch(e){console.warn('products:',e);}
 
     try{
-      const r=await _req('GET','/api/transporters?isActive=all');
+      const r=await _req('GET','/api/transporters');
       tranvporters=(r.data||[]).map((t,i)=>({
         id:i+1,_id:t._id,name:t.name||'',type:t.type||'',
         location:t.city||t.address||'',
@@ -15122,7 +15122,7 @@ function _updateChipStates(){
       for(const c of ls){
         try{ await _req('POST','/api/customers',{name:c.name||'',phone:c.phone||'',email:c.email||'',address:c.addr||c.address||'',city:c.city||'',contact:c.contact||'',whatsapp:c.whatsapp||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''}); synced++; }catch(ex){}
       }
-      if(synced > 0){ try{ const r=await _req('GET','/api/customers?isActive=all'); customers=(r.data||[]).map((c,i)=>({id:i+1,_id:c._id,name:c.name||'',contact:c.contact||'',phone:c.phone||'',whatsapp:c.whatsapp||'',city:c.city||'',addr:c.address||'',email:c.email||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''})); }catch(ex){} }
+      if(synced > 0){ try{ const r=await _req('GET','/api/customers?isActive=true'); customers=(r.data||[]).map((c,i)=>({id:i+1,_id:c._id,name:c.name||'',contact:c.contact||'',phone:c.phone||'',whatsapp:c.whatsapp||'',city:c.city||'',addr:c.address||'',email:c.email||'',salesExec:c.salesExec||'',biller:c.biller||'',manager:c.manager||''})); }catch(ex){} }
     }
     /* Vendors / Suppliers */
     if(vendors.length === 0){
@@ -15130,7 +15130,7 @@ function _updateChipStates(){
       for(const v of ls){
         try{ await _req('POST','/api/suppliers',{name:v.name||'',city:v.location||'',leadTimeDays:v.deliveryDays||7,phone:v.phone||'',whatsapp:v.whatsapp||'',contact:v.contact||''}); synced++; }catch(ex){}
       }
-      if(vendors.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/suppliers?isActive=all'); vendors=(r.data||[]).map((v,i)=>({id:i+1,_id:v._id,name:v.name||'',location:v.city||'',deliveryDays:v.leadTimeDays||7,contact:v.contactPerson||v.contact||'',phone:v.phone||'',whatsapp:v.whatsapp||''})); }catch(ex){} }
+      if(vendors.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/suppliers?isActive=true'); vendors=(r.data||[]).map((v,i)=>({id:i+1,_id:v._id,name:v.name||'',location:v.city||'',deliveryDays:v.leadTimeDays||7,contact:v.contactPerson||v.contact||'',phone:v.phone||'',whatsapp:v.whatsapp||''})); }catch(ex){} }
     }
     /* Products */
     if(products.length === 0){
@@ -15138,7 +15138,7 @@ function _updateChipStates(){
       for(const p of ls){
         try{ await _req('POST','/api/products',{name:p.name||'',code:p.code||'',category:p.category||'',unit:p.unit||'pcs',defaultVendor:p.defaultVendor||'',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''}); synced++; }catch(ex){}
       }
-      if(products.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/products?isActive=all'); products=(r.data||[]).map((p,i)=>({id:i+1,_id:p._id,code:p.code||'',name:p.name||'',category:p.category||'',defaultVendor:p.defaultVendor||'',unit:p.unit||'pcs',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''})); nextProductId=products.length+1; }catch(ex){} }
+      if(products.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/products?isActive=true'); products=(r.data||[]).map((p,i)=>({id:i+1,_id:p._id,code:p.code||'',name:p.name||'',category:p.category||'',defaultVendor:p.defaultVendor||'',unit:p.unit||'pcs',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''})); nextProductId=products.length+1; }catch(ex){} }
     }
     /* Transporters */
     if(tranvporters.length === 0){
@@ -15146,7 +15146,7 @@ function _updateChipStates(){
       for(const t of ls){
         try{ await _req('POST','/api/transporters',{name:t.name||'',type:t.type||'',city:t.location||'',avgTransitDays:t.transitDays||0,phone:t.phone||'',contact:t.contact||'',whatsapp:t.whatsapp||'',notes:t.notes||''}); synced++; }catch(ex){}
       }
-      if(tranvporters.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/transporters?isActive=all'); tranvporters=(r.data||[]).map((t,i)=>({id:i+1,_id:t._id,name:t.name||'',type:t.type||'',location:t.city||'',transitDays:t.avgTransitDays||0,contact:t.contact||'',phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''})); nextTranvporterId=tranvporters.length+1; }catch(ex){} }
+      if(tranvporters.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/transporters?isActive=true'); tranvporters=(r.data||[]).map((t,i)=>({id:i+1,_id:t._id,name:t.name||'',type:t.type||'',location:t.city||'',transitDays:t.avgTransitDays||0,contact:t.contact||'',phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''})); nextTranvporterId=tranvporters.length+1; }catch(ex){} }
     }
 
     if(synced > 0 && typeof showToast==='function') showToast('✅ Migrated '+synced+' records from local storage to server','success');
