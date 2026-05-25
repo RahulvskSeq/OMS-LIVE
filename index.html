@@ -4686,13 +4686,9 @@ function renderDealerSummary(){
     </div>`;
   };
 
-  const left=page.slice(0,5), right=page.slice(5,10);
-  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
-    <div>${left.map(card).join('')}</div>
-    <div>${right.map(card).join('')}</div>
-  </div>`;
+    el.innerHTML=`<div>${page.map(card).join('')}</div>`;
 
-  _renderCardPager('dealerSummaryPager',_dpsPage,totalPages,'_dpsPrev','_dpsNext');
+ _renderCardPager('dealerSummaryPager',_dpsPage,totalPages,'_dpsPrev','_dpsNext');
 }
 
 // ══════════════════════════════════════════
@@ -4756,13 +4752,9 @@ function renderSupplierSummary(){
     </div>`;
   };
 
-  const left=page.slice(0,5), right=page.slice(5,10);
-  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
-    <div>${left.map(card).join('')}</div>
-    <div>${right.map(card).join('')}</div>
-  </div>`;
+    el.innerHTML=`<div>${page.map(card).join('')}</div>`;
 
-  _renderCardPager('supplierSummaryPager',_spsPage,totalPages,'_spsPrev','_spsNext');
+ _renderCardPager('supplierSummaryPager',_spsPage,totalPages,'_spsPrev','_spsNext');
 }
 
 function openSupplierPopup(vendorName){
