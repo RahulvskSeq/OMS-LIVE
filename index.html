@@ -1242,6 +1242,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
             style="background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0 2px">✕</button>
         </div>
         <div id="pendingPageSubtitle" style="font-size:12px;color:#64748b;font-weight:600;white-space:nowrap"></div>
+        <div id="pendingStageFilters" style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:2px"></div>
       </div>
       <!-- Two-column layout: DON/SPO list + Dealer Summary sidebar -->
       <div style="display:flex;gap:14px;align-items:flex-start">
@@ -4182,6 +4183,24 @@ function renderPendingPage(){
   const subtitle=document.getElementById('pendingPageSubtitle');
   if(!el) return;
 
+  // Render stage filter chips
+  (function(){
+    const stageFilterEl=document.getElementById('pendingStageFilters');
+    if(!stageFilterEl)return;
+    const isDon=_pendingTab==='don';
+    const rel=getVisibleOrders().filter(o=>o.status!=='Cancelled'&&o.status!=='Billed'&&(isDon||o.vendorPoNum));
+    const sc={};rel.forEach(o=>{sc[o.status]=(sc[o.status]||0)+1;});
+    const stageOrder=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased'];
+    const chips=stageOrder.filter(s=>sc[s]>0).map(s=>{
+      const act=_pendingStageFilter===s;
+      return `<button onclick="_setPendingStageFilter('${s}')"
+        style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;${act?'background:#1e293b;color:#fff;border:none':'background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0'}">${s} <span style="opacity:.7">${sc[s]}</span></button>`;
+    });
+    stageFilterEl.innerHTML=chips.length
+      ?'<span style="font-size:11px;color:#94a3b8;font-weight:600;white-space:nowrap">Stage:</span>'+chips.join('')+(_pendingStageFilter?'<button onclick="_setPendingStageFilter(\'\')" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#fee2e2;color:#ef4444;border:none">✕ Clear</button>':'')
+      :'';
+  })();
+
   const stageColor=s=>STAGE_COLOR[s]||'#64748b';
 
   if(_pendingTab==='don'){
@@ -4197,6 +4216,7 @@ function renderPendingPage(){
     entries.sort((a,b)=>Math.max(...b[1].map(o=>o.id))-Math.max(...a[1].map(o=>o.id)));
     if(q) entries=entries.filter(([key,ords])=>key.includes(q)||ords.some(o=>
       (o.customer||'').toLowerCase().includes(q)||(o.product||'').toLowerCase().includes(q)||(o.orderedCode||'').toLowerCase().includes(q)));
+    if(_pendingStageFilter) entries=entries.filter(([,ords])=>ords.some(o=>o.status===_pendingStageFilter));
     if(subtitle) subtitle.textContent=`${entries.length} pending DON${entries.length!==1?'s':''}`;
     if(!entries.length){
       el.innerHTML='<div style="text-align:center;padding:60px;color:#94a3b8;font-size:15px">🎉 No pending DONs found</div>';
@@ -4265,6 +4285,7 @@ function renderPendingPage(){
     entries.sort((a,b)=>Math.max(...b[1].map(o=>o.id))-Math.max(...a[1].map(o=>o.id)));
     if(q) entries=entries.filter(([key,ords])=>key.toLowerCase().includes(q)||ords.some(o=>
       (o.vendor||'').toLowerCase().includes(q)||(o.product||'').toLowerCase().includes(q)||(o.orderedCode||'').toLowerCase().includes(q)));
+    if(_pendingStageFilter) entries=entries.filter(([,ords])=>ords.some(o=>o.status===_pendingStageFilter));
     if(subtitle) subtitle.textContent=`${entries.length} pending SPO${entries.length!==1?'s':''}`;
     if(!entries.length){
       el.innerHTML='<div style="text-align:center;padding:60px;color:#94a3b8;font-size:15px">🎉 No pending SPOs found</div>';
@@ -11317,6 +11338,11 @@ function toggleShipCard(key){
 // PHASE 3 — DELIVERIES (grouped by DON after Purchase)
 // ══════════════════════════════════════════════════════════════
 let _delivStatusFilter='Purchased';
+let _pendingStageFilter='';
+function _setPendingStageFilter(s){
+  _pendingStageFilter=(_pendingStageFilter===s)?'':s;
+  renderPendingPage();
+}
 const _delivExpanded=new Set();
 function toggleDelivCard(key){
   if(_delivExpanded.has(key))_delivExpanded.delete(key);
