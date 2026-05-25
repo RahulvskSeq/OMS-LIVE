@@ -4705,7 +4705,7 @@ function _spsNext(){_spsPage++;renderSupplierSummary();}
 
 function renderSupplierSummary(){
   const q=(document.getElementById('spsSrch')?.value||'').trim().toLowerCase();
-  const pendingStages=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased'];
+  const pendingStages=['PO Raised'];
   const vendorMap={};
   getVisibleOrders().forEach(o=>{
     if(!pendingStages.includes(o.status))return;
@@ -4766,7 +4766,7 @@ function renderSupplierSummary(){
 }
 
 function openSupplierPopup(vendorName){
-  const pendingStages=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased'];
+  const pendingStages=['PO Raised'];
   const ords=getVisibleOrders().filter(o=>(o.vendor||'(No Supplier)')===vendorName&&pendingStages.includes(o.status)).sort((a,b)=>new Date(a.eta||0)-new Date(b.eta||0));
   const totalQty=ords.reduce((s,o)=>s+(Number(o.qty)||0),0);
   document.getElementById('spTitle').textContent='🏭 '+vendorName+' — Pending Orders';
