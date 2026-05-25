@@ -15270,6 +15270,7 @@ function _updateChipStates(){
         users=(r.data||[]).map((u,i)=>({
           id:i+1,_id:u._id,username:u.username,
           name:u.name||u.username,role:u.role,biller:u.biller||'',password:'',
+          email:u.email||'',
           departmentId:u.department||'',departmentName:u.departmentName||'',
           teamLeadId:u.teamLeadId||'',teamLeadName:u.teamLeadName||''
         }));
