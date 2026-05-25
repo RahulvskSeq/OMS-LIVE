@@ -11466,7 +11466,7 @@ function renderDeliveries(){
                   style="background:#06b6d4;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">💰 Mark Purchased</button>
               </div>`
             :o.status==='Purchased'
-              ?`<button onclick="event.stopPropagation();markOrderBilled(${o.id})"
+              ?`<button onclick="event.stopPropagation();markOrderBilled(${o.id},'${o.orderDate}')"
                  style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ Ready to be Billed</button>`
               :o.status==='Billed'
                 ?`<span style="color:#16a34a;font-size:12px;font-weight:700">✅ Done</span>`
@@ -11791,8 +11791,8 @@ function confirmMarkPurchased(){
   }
 }
 
-function markOrderBilled(id){
-  const o=orders.find(x=>x.id===id);
+function markOrderBilled(id,orderDate){
+  const o=orders.find(x=>x.id===id&&(!orderDate||x.orderDate===orderDate));
   if(!o||o.status!=='Purchased') return;
   const prev=o.status;
   o.status='Billed';
