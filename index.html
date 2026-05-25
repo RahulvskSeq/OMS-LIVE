@@ -15408,6 +15408,54 @@ function _updateChipStates(){
     }catch(e){console.warn('transporter sync:',e);}
   };
 
+  /* ════ OVERRIDE: saveUser — sync new/edited users to MongoDB ════ */
+  const _origSaveUser = window.saveUser;
+  window.saveUser = async function(){
+    const wasEditing = typeof editingUser !== 'undefined' ? editingUser : null;
+    /* Read password BEFORE the original closes the modal and clears fields */
+    const pwd = (document.getElementById('umPwd')?.value||'').trim();
+    _origSaveUser.call(this);
+    const usr = wasEditing ? users.find(u=>u.id===wasEditing) : users[users.length-1];
+    if(!usr) return;
+    try{
+      const pl = {
+        name: usr.name,
+        username: usr.username,
+        email: usr.email || (usr.username+'@stencil.local'),
+        role: usr.role,
+        phone: usr.phone||''
+      };
+      if(usr._id){
+        await _req('PUT','/api/users/'+usr._id, pl);
+      } else {
+        const r = await _req('POST','/api/users',{...pl, password: pwd||'Stencil@123'});
+        if(r.data) usr._id = r.data._id;
+      }
+    }catch(e){ console.warn('user sync:',e); }
+  };
+
+  /* ════ OVERRIDE: delUser — soft-delete user in MongoDB ════ */
+  const _origDelUser = window.delUser;
+  window.delUser = async function(id){
+    const usr = users.find(u=>u.id===id);
+    const apiId = usr?._id;
+    _origDelUser.call(this, id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/users/'+apiId); }
+    catch(e){ console.warn('user delete sync:',e); }
+  };
+
+  /* ════ OVERRIDE: delProduct — soft-delete product in MongoDB ════ */
+  const _origDelProd = window.delProduct;
+  window.delProduct = async function(id){
+    const prod = products.find(p=>p.id===id);
+    const apiId = prod?._id;
+    _origDelProd.call(this, id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/products/'+apiId); }
+    catch(e){ console.warn('product delete sync:',e); }
+  };
+
   /* ════ OVERRIDE: _doRestoreFromFile — sync restored data to API ════
      The original only writes to localStorage then reloads.
      We intercept it: after writing localStorage, also push everything to MongoDB.
