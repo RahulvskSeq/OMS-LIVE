@@ -15228,7 +15228,15 @@ function _updateChipStates(){
       usr.role=cachedUsr.role; usr.name=cachedUsr.name||cachedUsr.username; usr.id=cachedUsr.id;
       _authReady=true; currentUser=usr;
       _applyPerms({id:usr.id,permissions:cachedUsr.permissions||[]});
+      /* Override any stale oms_session that restoreSession may have used */
       try{sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));}catch(ex){}
+      /* Immediately update sidebar DOM in case restoreSession already rendered wrong user */
+      try{
+        const av=document.getElementById('sbAvatar'); const nm=document.getElementById('sbName'); const rl=document.getElementById('sbRole');
+        if(av) av.textContent=(usr.name||usr.username).charAt(0).toUpperCase();
+        if(nm) nm.textContent=usr.name||usr.username;
+        if(rl && typeof getRoleLabel==='function') rl.textContent=getRoleLabel(usr.role);
+      }catch(ex){}
 
       /* Show app shell + loading indicator immediately */
       _showLoadingOverlay();
