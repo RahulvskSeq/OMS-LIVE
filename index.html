@@ -9172,6 +9172,8 @@ function saveUser(){
   const role=document.getElementById('umRole').value;
   if(!name||!username){showToast('Name and username are required','error');return;}
   if(!editingUser&&!password){showToast('Password is required for new users','error');return;}
+  if(!editingUser&&password&&password.length<6){showToast('Password must be at least 6 characters','error');return;}
+  if(editingUser&&password&&password.length<6){showToast('New password must be at least 6 characters','error');return;}
   const deptId=document.getElementById('umDept')?.value||'';
   const deptName=(departments||[]).find(d=>(d._id||d.id)===deptId)?.name||'';
   const tlId=document.getElementById('umTeamLead')?.value||'';
@@ -15634,7 +15636,11 @@ function _updateChipStates(){
         const r = await _req('POST','/api/users',{...pl, password: pwd||'Stencil@123'});
         if(r.data) usr._id = r.data._id;
       }
-    }catch(e){ console.warn('user sync:',e); }
+    }catch(e){
+      console.warn('user sync:',e);
+      const msg=e?.message||'Server error. Please try again.';
+      if(typeof showToast==='function') showToast('⚠️ User not saved: '+msg,'error');
+    }
   };
 
   /* ════ OVERRIDE: delUser — soft-delete user in MongoDB ════ */
