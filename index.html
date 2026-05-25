@@ -2631,15 +2631,27 @@ const DEFAULT_ROLE_PERMISSIONS={
     'viewDelivery',
     'viewVendor','viewMaster'
   ],
+  teamlead:   [
+    'viewAllOrders','createOrder','editOrder','cancelOrder','exportOrders',
+    'viewPendingDon','editPendingDon','viewPendingSpo','editPendingSpo',
+    'approve','raisePo','transitUpdate','logisticsUpdate',
+    'viewSupplierPo','editSupplierPo',
+    'viewShipments','editShipments',
+    'viewDelivery','deliver',
+    'raiseGrn','purchaseOrder',
+    'viewVendor','viewBiller',
+    'viewMaster',
+    'viewReports','exportReports'
+  ],
   biller:     [
-    'createOrder',
+    'viewAllOrders','createOrder','editOrder',
     'viewPendingDon',
     'viewBiller',
     'deliver',
     'viewDelivery'
   ],
   salesman:   [
-    'createOrder',
+    'viewAllOrders','createOrder','editOrder',
     'exportOrders',
     'viewBiller'
   ]
@@ -2647,7 +2659,7 @@ const DEFAULT_ROLE_PERMISSIONS={
 
 // Order scope per built-in role — 'all' | 'own-biller' | 'own-sales'
 const ROLE_ORDER_SCOPE={
-  superadmin:'all', admin:'all', manager:'all',
+  superadmin:'all', admin:'all', manager:'all', teamlead:'all',
   logistics:'all',  purchase:'all',
   biller:'own-biller', salesman:'own-sales'
 };
@@ -2662,6 +2674,7 @@ const ROLE_PAGE_ACCESS={
   superadmin: ['Dashboard','Orders','Supplier PO','Mark In Transit','Pending','Shipments','Delivery','Masters','Reports','Admin'],
   admin:      ['Dashboard','Orders','Supplier PO','Mark In Transit','Pending','Shipments','Delivery','Masters','Reports'],
   manager:    ['Dashboard','Orders','Supplier PO','Mark In Transit','Pending','Shipments','Delivery','Reports'],
+  teamlead:   ['Dashboard','Orders','Supplier PO','Mark In Transit','Pending','Shipments','Delivery','Reports'],
   logistics:  ['Dashboard','Orders','Mark In Transit','Pending','Shipments','Delivery'],
   purchase:   ['Dashboard','Orders','Pending','Shipments','Delivery'],
   biller:     ['Dashboard','Orders'],
@@ -15608,11 +15621,12 @@ function _updateChipStates(){
         email: usr.email || (usr.username+'@stencil.local'),
         role: usr.role,
         phone: usr.phone||'',
-        department: usr.departmentId||null,
         departmentName: usr.departmentName||'',
-        teamLeadId: usr.teamLeadId||null,
         teamLeadName: usr.teamLeadName||''
       };
+      // Only include ObjectId fields when they have a valid value (avoids Mongoose CastError)
+      if(usr.departmentId) pl.department = usr.departmentId;
+      if(usr.teamLeadId)   pl.teamLeadId = usr.teamLeadId;
       if(usr._id){
         await _req('PUT','/api/users/'+usr._id, pl);
       } else {
