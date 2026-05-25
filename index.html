@@ -243,6 +243,7 @@ tr.cmt-row td{padding-top:0;border-top:none}
 .role-sa{background:#7c3aed;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .role-ad{background:#dc2626;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .role-mg{background:#0284c7;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.role-tl{background:#0891b2;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .role-bi{background:#059669;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .role-sl{background:#d97706;color:#fff;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 
@@ -1312,6 +1313,11 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
       <div id="rolesPageContent"></div>
     </div>
 
+    <!-- ── DEPARTMENTS ── -->
+    <div id="pg-departments" class="page">
+      <div id="deptsPageContent"></div>
+    </div>
+
     <!-- ── BACKEND ── -->
     <div id="pg-backend" class="page">
       <div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
@@ -1758,10 +1764,11 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
     <div class="fg"><label>Username *</label><input id="umUser" type="text" placeholder="Login username"></div>
     <div class="fg"><label>Password *</label><input id="umPwd" type="password" placeholder="Password"></div>
     <div class="fg"><label>Role *</label>
-      <select id="umRole">
+      <select id="umRole" onchange="_umRoleChanged()">
         <option value="superadmin">Super Admin</option>
         <option value="admin">Admin</option>
         <option value="manager">Manager — Approve, PO, Transit</option>
+        <option value="teamlead">Team Lead — Supervises team</option>
         <option value="logistics">Logistics — Transit updates</option>
         <option value="purchase">Purchase — Warehouse → Purchased</option>
         <option value="biller">Biller — Create orders, Invoice</option>
@@ -1769,6 +1776,18 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
       </select></div>
     <div class="fg"><label>Assigned To (Biller name for Biller role)</label>
       <input id="umBiller" type="text" placeholder="e.g. SIRI (for billers)"></div>
+    <div class="frow">
+      <div class="fg"><label>Department</label>
+        <select id="umDept" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+          <option value="">— No Department —</option>
+        </select>
+      </div>
+      <div class="fg" id="umTeamLeadWrap"><label>Team Lead</label>
+        <select id="umTeamLead" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+          <option value="">— No Team Lead —</option>
+        </select>
+      </div>
+    </div>
   </div>
   <div class="mftr">
     <button class="btn btn-outline" onclick="closeModal('userModal')">Cancel</button>
@@ -2326,6 +2345,8 @@ let nextTranvporterId = (()=>{try{return parseInt(localStorage.getItem('oms_next
 
 // CUSTOMERS
 let customers = (()=>{try{const s=localStorage.getItem('customers_v2');return s?JSON.parse(s):[];}catch(e){return[];}})();
+// DEPARTMENTS (synced from API)
+let departments = [];
 
 // PRODUCTS
 let products = (()=>{try{const s=localStorage.getItem('products_v2');return s?JSON.parse(s):[];}catch(e){return[];}})();
@@ -2737,8 +2758,8 @@ let currentUser = null;
   }catch(e){sessionStorage.removeItem('oms_session');}
 })();
 
-const ROLE_LABELS = {superadmin:'Super Admin',admin:'Admin',manager:'Manager',logistics:'Logistics',purchase:'Purchase',biller:'Biller',salesman:'Salesman'};
-const ROLE_CSS = {superadmin:'role-sa',admin:'role-ad',manager:'role-mg',logistics:'role-lg',purchase:'role-pu',biller:'role-bi',salesman:'role-sl'};
+const ROLE_LABELS = {superadmin:'Super Admin',admin:'Admin',manager:'Manager',teamlead:'Team Lead',logistics:'Logistics',purchase:'Purchase',biller:'Biller',salesman:'Salesman'};
+const ROLE_CSS = {superadmin:'role-sa',admin:'role-ad',manager:'role-mg',teamlead:'role-tl',logistics:'role-lg',purchase:'role-pu',biller:'role-bi',salesman:'role-sl'};
 
 function fillCreds(u,p){document.getElementById('lusr').value=u;document.getElementById('lpwd').value=p}
 
@@ -2768,7 +2789,7 @@ function doLogout(){
 
 // ── Login-as (admin/superadmin only) ──
 const ROLE_COLORS={superadmin:'#dc2626',admin:'#f97316',manager:'#0ea5e9',logistics:'#f59e0b',purchase:'#10b981',biller:'#8b5cf6',salesman:'#16a34a'};
-const ROLE_DOT={superadmin:'🔴',admin:'🟠',manager:'🔵',logistics:'🟡',purchase:'🟢',biller:'🟣',salesman:'⚪'};
+const ROLE_DOT={superadmin:'🔴',admin:'🟠',manager:'🔵',teamlead:'🔷',logistics:'🟡',purchase:'🟢',biller:'🟣',salesman:'⚪'};
 
 function setupLoginAs(){
   const wrap=document.getElementById('loginAsWrap');
@@ -2966,10 +2987,11 @@ function buildSidebar(){
     {id:'tranvporters',icon:'🚛', label:'Transporters'},
   ];
   const bottomItems=[
-    {id:'reports', icon:'📈', label:'Reports',           role:'viewReports'},
-    {id:'roles',   icon:'🔐', label:'Role Management',   role:'manageRoles'},
-    {id:'users',   icon:'👤', label:'User Management',   role:'manageUsers'},
-    {id:'backend', icon:'⚙️', label:'Backend / Settings',superadmin:true},
+    {id:'reports',     icon:'📈', label:'Reports',            role:'viewReports'},
+    {id:'departments', icon:'🏢', label:'Departments',         superadmin:true},
+    {id:'roles',       icon:'🔐', label:'Role Management',    role:'manageRoles'},
+    {id:'users',       icon:'👤', label:'User Management',    role:'manageUsers'},
+    {id:'backend',     icon:'⚙️', label:'Backend / Settings', superadmin:true},
   ];
 
   const masterPages=['products','customers','vendors','tranvporters'];
@@ -3280,6 +3302,7 @@ function navTo(page){
     intransit:'🚚 Mark In Transit',shipments:'📦 Shipments',deliveries:'🎯 Deliveries',
     pending:'📦 Pending',
     vendors:'🏭 Supplier Master',tranvporters:'🚛 Transporter / Truck Vendor Master',
+    departments:'🏢 Departments',
     reports:'📈 Reports',roles:'🔐 Role Management',users:'👤 User Management',backend:'⚙️ Backend / Settings'};
   const _ptEl=document.getElementById('pageTitle');
   if(_ptEl){_ptEl.textContent=titles[page]||page;_ptEl.style.display=page==='dashboard'?'none':'block';}
@@ -3322,6 +3345,7 @@ function renderPage(p){
   else if(p==='shipments'){_shipStatusFilter='';renderShipments();}
   else if(p==='deliveries')renderDeliveries();
   else if(p==='pending')renderPendingPage();
+  else if(p==='departments')renderDepartmentsPage();
   else if(p==='backend')renderBackend();
 }
 
@@ -3365,6 +3389,7 @@ const DASH_ROLE_DEFAULTS={
   superadmin:{pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1},
   admin:     {pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1},
   manager:   {pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1},
+  teamlead:  {pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1},
   logistics: {pipeline:1,recentpurch:0,lr:1,due:1,don:0,spo:0,dealer:0,supplier:1,etaedited:1,recent:1},
   purchase:  {pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1},
   biller:    {pipeline:0,recentpurch:0,lr:0,due:1,don:1,spo:0,dealer:1,supplier:0,etaedited:1,recent:1},
@@ -9099,21 +9124,33 @@ function renderUsersTable(){
       </div></td>
     </tr>`).join('')}</tbody></table></div>`;
 }
+function _umRoleChanged(){
+  const role=document.getElementById('umRole').value;
+  const wrap=document.getElementById('umTeamLeadWrap');
+  if(wrap) wrap.style.display=['superadmin','admin','manager','teamlead'].includes(role)?'none':'block';
+}
 function openUserModal(id=null){
   editingUser=id;
   document.getElementById('userModalTitle').textContent=id?'Edit User':'Add User';
   ['umName','umUser','umPwd','umBiller'].forEach(i=>document.getElementById(i).value='');
-  // Rebuild role options to include custom roles
-  const builtInRoleOpts=['superadmin','admin','manager','logistics','purchase','biller','salesman']
+  const builtInRoleOpts=['superadmin','admin','manager','teamlead','logistics','purchase','biller','salesman']
     .map(r=>`<option value="${r}">${ROLE_LABELS[r]||r}</option>`).join('');
   const customRoleOpts=customRoles.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   document.getElementById('umRole').innerHTML=builtInRoleOpts+customRoleOpts;
   document.getElementById('umRole').value='salesman';
+  const deptSel=document.getElementById('umDept');
+  if(deptSel) deptSel.innerHTML='<option value="">— No Department —</option>'+(departments||[]).map(d=>`<option value="${d._id||d.id}">${d.name}</option>`).join('');
+  const tlSel=document.getElementById('umTeamLead');
+  if(tlSel) tlSel.innerHTML='<option value="">— No Team Lead —</option>'+users.filter(u=>['teamlead','manager'].includes(u.role)&&u.id!==id).map(u=>`<option value="${u.id||u._id}">${u.name||u.username}</option>`).join('');
+  _umRoleChanged();
   if(id){
     const u=users.find(x=>x.id===id);if(!u)return;
     document.getElementById('umName').value=u.name;document.getElementById('umUser').value=u.username;
-    document.getElementById('umPwd').value=u.password;document.getElementById('umRole').value=u.role;
+    document.getElementById('umPwd').value=u.password||'';document.getElementById('umRole').value=u.role;
     document.getElementById('umBiller').value=u.biller||'';
+    if(deptSel) deptSel.value=u.departmentId||u.department||'';
+    if(tlSel) tlSel.value=u.teamLeadId||'';
+    _umRoleChanged();
   }
   showModal('userModal');
 }
@@ -9122,14 +9159,21 @@ function saveUser(){
   const username=document.getElementById('umUser').value.trim();
   const password=document.getElementById('umPwd').value.trim();
   const role=document.getElementById('umRole').value;
-  if(!name||!username||!password){showToast('Name, username and password are required','error');return;}
+  if(!name||!username){showToast('Name and username are required','error');return;}
+  if(!editingUser&&!password){showToast('Password is required for new users','error');return;}
+  const deptId=document.getElementById('umDept')?.value||'';
+  const deptName=(departments||[]).find(d=>(d._id||d.id)===deptId)?.name||'';
+  const tlId=document.getElementById('umTeamLead')?.value||'';
+  const tlName=users.find(u=>(u.id||u._id)==tlId)?.name||'';
   if(editingUser){
     const u=users.find(x=>x.id===editingUser);
-    if(u){u.name=name;u.username=username;u.password=password;u.role=role;u.biller=document.getElementById('umBiller').value;}
+    if(u){u.name=name;u.username=username;if(password)u.password=password;u.role=role;u.biller=document.getElementById('umBiller').value;
+      u.departmentId=deptId;u.departmentName=deptName;u.teamLeadId=tlId;u.teamLeadName=tlName;}
     audit('USER_EDITED',`User updated: ${name} (${username}) · Role: ${getRoleLabel(role)}`,'user',editingUser);
   }else{
     if(users.find(x=>x.username===username)){showToast('Username already exists','error');return;}
-    const newU={id:nextId.user++,name,username,password,role,biller:document.getElementById('umBiller').value};
+    const newU={id:nextId.user++,name,username,password,role,biller:document.getElementById('umBiller').value,
+      departmentId:deptId,departmentName:deptName,teamLeadId:tlId,teamLeadName:tlName};
     users.push(newU);
     audit('USER_CREATED',`New user created: ${name} (${username}) · Role: ${getRoleLabel(role)}`,'user',newU.id);
   }
@@ -9143,6 +9187,86 @@ function delUser(id){
   audit('USER_DELETED',`User deleted: ${u?.name||''} (${u?.username||''}) · Role: ${u?.role?getRoleLabel(u.role):''}`,'user',id);
   users=users.filter(u=>u.id!==id);
   showToast('User deleted','success');renderUsersTable();
+}
+
+// ═══════════════════════════════════════
+//  DEPARTMENTS MANAGEMENT (Super Admin)
+// ═══════════════════════════════════════
+let _editingDept = null;
+
+function renderDepartmentsPage(){
+  const wrap = document.getElementById('deptsPageContent');
+  if(!wrap) return;
+  const canManage = currentUser?.role === 'superadmin';
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:#1e293b">🏢 Departments</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px">${departments.length} department${departments.length!==1?'s':''}</div>
+      </div>
+      ${canManage?`<button class="btn btn-primary btn-sm" onclick="openDeptModal()">+ Add Department</button>`:''}
+    </div>
+    ${departments.length===0?`<div style="text-align:center;padding:60px;color:#94a3b8;font-size:15px">No departments yet${canManage?' — click + Add Department to create one':''}</div>`:`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      ${departments.map(d=>`
+        <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px 18px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div>
+              <div style="font-size:15px;font-weight:800;color:#1e293b">🏢 ${d.name}</div>
+              ${d.description?`<div style="font-size:12px;color:#64748b;margin-top:4px">${d.description}</div>`:''}
+              <div style="font-size:11px;color:#94a3b8;margin-top:6px">${users.filter(u=>u.departmentId===(d._id||d.id)||u.departmentName===d.name).length} members</div>
+            </div>
+            ${canManage?`<div style="display:flex;gap:6px;flex-shrink:0">
+              <button onclick="openDeptModal('${d._id||d.id}')" style="padding:4px 10px;border:1.5px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:12px">✏️</button>
+              <button onclick="delDept('${d._id||d.id}')" style="padding:4px 10px;border:1.5px solid #fca5a5;border-radius:6px;background:#fff;color:#dc2626;cursor:pointer;font-size:12px">🗑️</button>
+            </div>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`}
+  `;
+}
+
+function openDeptModal(id=null){
+  _editingDept = id;
+  const d = id ? departments.find(x=>(x._id||x.id)===id) : null;
+  const html = `<div class="overlay" id="deptModal" style="display:flex">
+    <div class="modal modal-sm">
+      <div class="mhdr"><h3>${id?'Edit':'Add'} Department</h3><button class="mclose" onclick="closeModal('deptModal')">✕</button></div>
+      <div class="mbody">
+        <div class="fg"><label>Department Name *</label><input id="dmName" type="text" placeholder="e.g. Sales, Operations" value="${d?.name||''}"></div>
+        <div class="fg"><label>Description</label><input id="dmDesc" type="text" placeholder="Optional description" value="${d?.description||''}"></div>
+      </div>
+      <div class="mftr">
+        <button class="btn btn-outline" onclick="closeModal('deptModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveDept()">💾 Save</button>
+      </div>
+    </div></div>`;
+  const existing = document.getElementById('deptModal');
+  if(existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('dmName').focus();
+}
+
+async function saveDept(){
+  const name = document.getElementById('dmName').value.trim();
+  if(!name){showToast('Department name is required','error');return;}
+  const desc = document.getElementById('dmDesc').value.trim();
+  if(_editingDept){
+    const d = departments.find(x=>(x._id||x.id)===_editingDept);
+    if(d){d.name=name;d.description=desc;}
+  } else {
+    departments.push({id:'local_'+Date.now(), name, description:desc});
+  }
+  closeModal('deptModal');
+  renderDepartmentsPage();
+  showToast(_editingDept?'Department updated':'Department added','success');
+}
+
+function delDept(id){
+  if(!confirm('Delete this department?'))return;
+  departments = departments.filter(d=>(d._id||d.id)!==id);
+  renderDepartmentsPage();
+  showToast('Department deleted','success');
 }
 
 // ═══════════════════════════════════════
@@ -14750,7 +14874,17 @@ function _checkDuplicate(custName){
   const _origAcPick=window.acPick||acPick;
   window.acPick=function(inputId,el){
     _origAcPick(inputId,el);
-    if(inputId==='omCust')_checkDuplicate(el.dataset.val);
+    if(inputId==='omCust'){
+      _checkDuplicate(el.dataset.val);
+      const custName=el.dataset.val;
+      const cust=customers.find(c=>c.name===custName||c.apiName===custName);
+      if(cust){
+        const billerEl=document.getElementById('omBillerDisp');
+        const salesEl=document.getElementById('omSalesDisp');
+        if(billerEl&&!billerEl.value&&cust.biller) billerEl.value=cust.biller;
+        if(salesEl&&!salesEl.value&&cust.salesExec) salesEl.value=cust.salesExec;
+      }
+    }
   };
 })();
 
@@ -15125,7 +15259,9 @@ function _updateChipStates(){
       if((r.data||[]).length>0){
         users=(r.data||[]).map((u,i)=>({
           id:i+1,_id:u._id,username:u.username,
-          name:u.name||u.username,role:u.role,biller:u.biller||'',password:''
+          name:u.name||u.username,role:u.role,biller:u.biller||'',password:'',
+          departmentId:u.department||'',departmentName:u.departmentName||'',
+          teamLeadId:u.teamLeadId||'',teamLeadName:u.teamLeadName||''
         }));
         if(users.length>0) nextId.user=users.length+1;
         if(currentUser){
@@ -15134,6 +15270,11 @@ function _updateChipStates(){
         }
       }
     }catch(e){console.warn('users:',e);}
+
+    try{
+      const r=await _req('GET','/api/departments');
+      departments=(r.data||[]).map(d=>({id:d._id,_id:d._id,name:d.name||'',description:d.description||''}));
+    }catch(e){console.warn('departments:',e);}
   }
 
   /* ════ ONE-TIME MIGRATION: localStorage → MongoDB ════
@@ -15469,7 +15610,11 @@ function _updateChipStates(){
         username: usr.username,
         email: usr.email || (usr.username+'@stencil.local'),
         role: usr.role,
-        phone: usr.phone||''
+        phone: usr.phone||'',
+        department: usr.departmentId||null,
+        departmentName: usr.departmentName||'',
+        teamLeadId: usr.teamLeadId||null,
+        teamLeadName: usr.teamLeadName||''
       };
       if(usr._id){
         await _req('PUT','/api/users/'+usr._id, pl);
@@ -15533,6 +15678,36 @@ function _updateChipStates(){
     if(!apiId) return;
     try{ await _req('DELETE','/api/transporters/'+apiId); }
     catch(e){ console.warn('transporter delete sync:',e); }
+  };
+
+  /* ════ OVERRIDE: saveDept / delDept — sync departments to MongoDB ════ */
+  const _origSaveDept = window.saveDept;
+  window.saveDept = async function(){
+    const name = document.getElementById('dmName')?.value?.trim();
+    const desc = document.getElementById('dmDesc')?.value?.trim()||'';
+    if(!name) return;
+    _origSaveDept.call(this);
+    try{
+      if(_editingDept){
+        const d=departments.find(x=>(x._id||x.id)===_editingDept);
+        if(d&&d._id) await _req('PUT','/api/departments/'+d._id,{name,description:desc});
+      } else {
+        const r=await _req('POST','/api/departments',{name,description:desc});
+        if(r.data){
+          const d=departments[departments.length-1];
+          if(d) d._id=r.data._id;
+        }
+      }
+    }catch(e){console.warn('dept sync:',e);}
+  };
+  const _origDelDept = window.delDept;
+  window.delDept = async function(id){
+    const d=departments.find(x=>(x._id||x.id)===id);
+    const apiId=d?._id;
+    _origDelDept.call(this,id);
+    if(!apiId) return;
+    try{ await _req('DELETE','/api/departments/'+apiId); }
+    catch(e){console.warn('dept delete sync:',e);}
   };
 
   /* ════ OVERRIDE: _doRestoreFromFile — sync restored data to API ════
