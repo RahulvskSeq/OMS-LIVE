@@ -15319,23 +15319,32 @@ function _updateChipStates(){
     if(lu) lu.value=''; if(lp) lp.value='';
   };
 
-  /* ════ ORDER SYNC (debounced) ════ */
+  /* ════ ORDER SYNC ════ */
   let _syncTimer=null;
+  let _syncing=false;   /* semaphore — prevents concurrent POST duplicates */
+  let _syncQueued=false; /* if a sync was requested while one was running, run again after */
   const _snap={};
   async function _syncOrders(){
-    for(const o of orders){
-      const cur=JSON.stringify(o);
-      if(_snap[o.id]===cur) continue;
-      try{
-        if(!o._id){
-          const r=await _req('POST','/api/orders',_toAPI(o));
-          if(r.data){o._id=r.data._id;o.id=r.data.seqId||o.id;}
-        }else{
-          await _req('PUT','/api/orders/'+o._id,_toAPI(o));
-        }
-        _snap[o.id]=JSON.stringify(o);
-        _clearPending(o.id); /* confirmed by API — remove from pending queue */
-      }catch(e){console.warn('order sync:',e);}
+    if(_syncing){ _syncQueued=true; return; }
+    _syncing=true; _syncQueued=false;
+    try{
+      for(const o of orders){
+        const cur=JSON.stringify(o);
+        if(_snap[o.id]===cur) continue;
+        try{
+          if(!o._id){
+            const r=await _req('POST','/api/orders',_toAPI(o));
+            if(r.data){o._id=r.data._id;o.id=r.data.seqId||o.id;}
+          }else{
+            await _req('PUT','/api/orders/'+o._id,_toAPI(o));
+          }
+          _snap[o.id]=JSON.stringify(o);
+          _clearPending(o.id);
+        }catch(e){console.warn('order sync:',e);}
+      }
+    }finally{
+      _syncing=false;
+      if(_syncQueued) _syncOrders(); /* process any changes that arrived while we were busy */
     }
   }
 
@@ -15348,8 +15357,7 @@ function _updateChipStates(){
       if(dirtyIds.length) _markPending(dirtyIds);
     }catch(e){}
     clearTimeout(_syncTimer);
-    /* Sync immediately — clear pending flag per order after each successful PUT/POST */
-    _syncOrders().then&&_syncOrders(); /* fire-and-forget with pending queue as safety net */
+    _syncOrders(); /* fire-and-forget; semaphore prevents concurrent duplicates */
   };
 
   /* ════ OVERRIDE: saveCustomer ════ */
