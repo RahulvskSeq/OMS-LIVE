@@ -2982,20 +2982,20 @@ function buildSidebar(){
     let bdg='';
     if(i.id==='vendorpo')    bdg=badge('#f97316',approvedCnt);
     if(i.id==='intransit')   bdg=badge('#f97316',raisedCnt);
-    if(i.status){const n=orders.filter(o=>o.status===i.status).length;bdg=badge('#8b5cf6',n);}
-    if(i.id==='deliv-grn')        bdg=badge('#d97706',orders.filter(o=>o.status==='GRN').length);
-    if(i.id==='deliv-purchased')  bdg=badge('#06b6d4',orders.filter(o=>o.status==='Purchased').length);
-    if(i.id==='deliv-billed')     bdg=badge('#16a34a',orders.filter(o=>o.status==='Billed').length);
-    if(i.id==='deliv-cancelled')  bdg=badge('#ef4444',orders.filter(o=>o.status==='Cancelled').length);
+    if(i.status){const n=_vo.filter(o=>o.status===i.status).length;bdg=badge('#8b5cf6',n);}
+    if(i.id==='deliv-grn')        bdg=badge('#d97706',_vo.filter(o=>o.status==='GRN').length);
+    if(i.id==='deliv-purchased')  bdg=badge('#06b6d4',_vo.filter(o=>o.status==='Purchased').length);
+    if(i.id==='deliv-billed')     bdg=badge('#16a34a',_vo.filter(o=>o.status==='Billed').length);
+    if(i.id==='deliv-cancelled')  bdg=badge('#ef4444',_vo.filter(o=>o.status==='Cancelled').length);
     if(i.id==='pending-don'){
-      // Count distinct pending DONs
-      const allNc=orders.filter(o=>o.status!=='Cancelled');
+      // Count distinct pending DONs visible to this user
+      const allNc=_vo.filter(o=>o.status!=='Cancelled');
       const donMap={};allNc.forEach(o=>{const k=String(o.groupDonId||o.id);if(!donMap[k])donMap[k]=[];donMap[k].push(o);});
       const n=Object.values(donMap).filter(arr=>arr.some(o=>o.status!=='Billed')).length;
       bdg=badge('#1a73e8',n);
     }
     if(i.id==='pending-vpo'){
-      const allNcV=orders.filter(o=>o.vendorPoNum&&o.status!=='Cancelled');
+      const allNcV=_vo.filter(o=>o.vendorPoNum&&o.status!=='Cancelled');
       const vpoMap={};allNcV.forEach(o=>{if(!vpoMap[o.vendorPoNum])vpoMap[o.vendorPoNum]=[];vpoMap[o.vendorPoNum].push(o);});
       const n=Object.values(vpoMap).filter(arr=>arr.some(o=>o.status!=='Billed')).length;
       bdg=badge('#0d9488',n);
@@ -3787,7 +3787,7 @@ function renderDashboard(){
         _heroStatChip('🔢','Units Moving',visActive.filter(o=>['In Transit','At Transporter','Warehouse'].includes(o.status)).reduce((s,o)=>s+(Number(o.qty)||0),0),'#fbbf24',"filterAndGoOrders('')");
 
     }else if(role==='biller'){
-      const my=orders.filter(o=>o.biller===currentUser.biller);
+      const my=getVisibleOrders(); /* already scoped to this biller's orders */
       const myActive=my.filter(o=>!['Billed','Cancelled'].includes(o.status));
       chips=
         _heroStatChip('📋','My Active Orders',myActive.length,'#fbbf24',"filterAndGoOrders('')")+
@@ -3796,7 +3796,7 @@ function renderDashboard(){
         _heroStatChip('📅','Due Today',myActive.filter(o=>o.eta===todayStr).length,'#86efac',"filterAndGoOrders('')");
 
     }else if(role==='salesman'){
-      const my=orders.filter(o=>o.salesExec===currentUser.name);
+      const my=getVisibleOrders(); /* already scoped to this salesman's orders */
       const myAct=my.filter(o=>!['Billed','Cancelled'].includes(o.status));
       const overdue=myAct.filter(o=>o.eta&&o.eta<todayStr).length;
       chips=
@@ -5861,13 +5861,35 @@ function _billedDaysAgo(o){
 }
 
 function getVisibleOrders(){
-  if(can('viewAllOrders'))return orders; // admin/superadmin see everything always
-  const r=currentUser.role,b=currentUser.biller,n=currentUser.name,u=currentUser.username;
-  // For all non-admin roles: hide Billed orders older than 7 days
+  const r=currentUser.role;
+  const b=(currentUser.biller||'').trim().toLowerCase();
+  const n=(currentUser.name||'').trim().toLowerCase();
+  const u=(currentUser.username||'').trim().toLowerCase();
   const _hideOldBilled=o=>!(o.status==='Billed'&&_billedDaysAgo(o)>7);
-  if(r==='biller')   return orders.filter(o=>o.biller===b).filter(_hideOldBilled);
-  if(r==='salesman') return orders.filter(o=>o.salesExec===n).filter(_hideOldBilled);
-  return orders.filter(o=>o.createdBy===u).filter(_hideOldBilled);
+
+  /* ── Biller: see orders where their biller-code OR name appears as biller,
+     OR they personally created the order ── */
+  if(r==='biller'){
+    return orders.filter(o=>{
+      const ob=(o.biller||'').trim().toLowerCase();
+      return (b&&ob===b)||(n&&ob===n)||(o.createdBy||'').toLowerCase()===u;
+    }).filter(_hideOldBilled);
+  }
+
+  /* ── Salesman: see orders where they are the salesExec,
+     OR they personally created the order ── */
+  if(r==='salesman'){
+    return orders.filter(o=>{
+      const os=(o.salesExec||'').trim().toLowerCase();
+      return (n&&os===n)||(o.createdBy||'').toLowerCase()===u;
+    }).filter(_hideOldBilled);
+  }
+
+  /* ── All other roles: permission-based ── */
+  if(can('viewAllOrders')) return orders;
+
+  /* ── Custom roles without viewAllOrders: own created orders only ── */
+  return orders.filter(o=>(o.createdBy||'').toLowerCase()===u).filter(_hideOldBilled);
 }
 
 // ── DON / SPO quick-filter chips ──
