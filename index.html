@@ -1247,17 +1247,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
       <!-- Two-column layout: DON/SPO list + Dealer Summary sidebar -->
       <div style="display:flex;gap:14px;align-items:flex-start">
         <div id="pendingPageList" style="flex:1;min-width:0"></div>
-        <!-- Dealer Summary panel (biller only) -->
-        <div id="pendingDealerSummaryPanel" style="width:300px;flex-shrink:0;background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);overflow:hidden;position:sticky;top:14px">
-          <div style="padding:12px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9">
-            <div style="font-size:12px;font-weight:800;color:#1e293b">🏪 Dealer Summary <span id="pendingDpsTotalLabel" style="font-size:11px;font-weight:400;color:#64748b"></span></div>
-            <input class="srch" id="pendingDpsSrch" type="text" placeholder="🔍 Dealer…"
-              style="width:100px;font-size:11px;padding:4px 8px"
-              oninput="_pendingDpsPage=1;renderPendingDealerSummary()">
-          </div>
-          <div id="pendingDealerSummaryList" style="padding:8px 12px;max-height:calc(100vh - 220px);overflow-y:auto"></div>
-          <div id="pendingDealerSummaryPager" style="padding:6px 12px 8px;display:flex;justify-content:flex-end;align-items:center;gap:4px;border-top:1px solid #f1f5f9"></div>
-        </div>
+
       </div>
     </div>
 
@@ -4176,7 +4166,6 @@ function _syncPendingTabBtns(){
 
 function renderPendingPage(){
   _syncPendingTabBtns();
-  renderPendingDealerSummary();
 
   const q=(document.getElementById('pendingSrch')?.value||'').trim().toLowerCase();
   const el=document.getElementById('pendingPageList');
@@ -5560,70 +5549,6 @@ function renderDueOrders(){
 let _pendingDpsPage=1;
 const _PDPS_PER_PAGE=12;
 
-function renderPendingDealerSummary(){
-  const q=(document.getElementById('pendingDpsSrch')?.value||'').trim().toLowerCase();
-  const pendingStages=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','Purchased'];
-  const custMap={};
-  getVisibleOrders().forEach(o=>{
-    if(!pendingStages.includes(o.status))return;
-    if(!custMap[o.customer]) custMap[o.customer]=[];
-    custMap[o.customer].push(o);
-  });
-  let entries=Object.entries(custMap).sort((a,b)=>b[1].length-a[1].length);
-  if(q) entries=entries.filter(([name])=>name.toLowerCase().includes(q));
-
-  const total=entries.length;
-  const totalPages=Math.max(1,Math.ceil(total/_PDPS_PER_PAGE));
-  if(_pendingDpsPage>totalPages)_pendingDpsPage=totalPages;
-  const page=entries.slice((_pendingDpsPage-1)*_PDPS_PER_PAGE, _pendingDpsPage*_PDPS_PER_PAGE);
-
-  const lbl=document.getElementById('pendingDpsTotalLabel');
-  if(lbl) lbl.textContent='('+total+')';
-
-  const el=document.getElementById('pendingDealerSummaryList');
-  if(!el)return;
-  if(!page.length){
-    el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px">No pending orders</div>';
-    document.getElementById('pendingDealerSummaryPager').innerHTML='';
-    return;
-  }
-
-  const stageColor=s=>STAGE_COLOR[s]||'#64748b';
-  const rows=page.map(([name,ords])=>{
-    const stageCounts={};
-    ords.forEach(o=>stageCounts[o.status]=(stageCounts[o.status]||0)+1);
-    const pills=Object.entries(stageCounts).map(([s,n])=>
-      `<span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700;background:${stageColor(s)}18;color:${stageColor(s)};margin:1px 1px 0 0">${s}×${n}</span>`
-    ).join('');
-    const totalUnits=ords.reduce((s,o)=>s+(Number(o.qty)||0),0);
-    return`<div onclick="openDealerPopup('${name.replace(/'/g,"\\'")}')"
-      style="padding:7px 10px;border-radius:8px;border:1px solid #e2e8f0;background:#fafafa;cursor:pointer;transition:background .15s;margin-bottom:5px"
-      onmouseover="this.style.background='#f0f7ff';this.style.borderColor='#1a73e8'" onmouseout="this.style.background='#fafafa';this.style.borderColor='#e2e8f0'">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px">
-        <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-        <span style="flex-shrink:0;font-size:11px;font-weight:700;color:#64748b">${totalUnits} units</span>
-      </div>
-      <div style="line-height:1.6">${pills}</div>
-    </div>`;
-  }).join('');
-
-  el.innerHTML=rows;
-
-  // Pagination
-  const pager=document.getElementById('pendingDealerSummaryPager');
-  if(!pager)return;
-  if(totalPages<=1){pager.innerHTML='';return;}
-  let btns=`<button onclick="if(_pendingDpsPage>1){_pendingDpsPage--;renderPendingDealerSummary();}"
-    style="min-width:26px;height:26px;border-radius:6px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;cursor:pointer;opacity:${_pendingDpsPage===1?.35:1}">‹</button>`;
-  for(let p=1;p<=totalPages;p++){
-    const active=p===_pendingDpsPage;
-    btns+=`<button onclick="_pendingDpsPage=${p};renderPendingDealerSummary()"
-      style="min-width:26px;height:26px;border-radius:6px;border:1.5px solid ${active?'#1a73e8':'#e2e8f0'};background:${active?'#1a73e8':'#fff'};color:${active?'#fff':'#374151'};font-size:11px;font-weight:700;cursor:pointer">${p}</button>`;
-  }
-  btns+=`<button onclick="if(_pendingDpsPage<${totalPages}){_pendingDpsPage++;renderPendingDealerSummary();}"
-    style="min-width:26px;height:26px;border-radius:6px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;cursor:pointer;opacity:${_pendingDpsPage===totalPages?.35:1}">›</button>`;
-  pager.innerHTML=btns;
-}
 
 function openDealerPopup(custName){
   const pendingStages=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','Purchased'];
