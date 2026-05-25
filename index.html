@@ -902,6 +902,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
               <div style="display:flex;gap:4px;flex-shrink:0">
                 <button id="etaTabAll"      onclick="_setEtaTab('all')"      style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:#e2e8f0;color:#64748b;transition:all .15s">All</button>
                 <button id="etaTabDelayed"  onclick="_setEtaTab('delayed')"  style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🔴 Delayed</button>
+                <button id="etaTabOntime"   onclick="_setEtaTab('ontime')"   style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🔵 Arriving on time</button>
                 <button id="etaTabPrepared" onclick="_setEtaTab('prepared')" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🟢 May arrive early</button>
               </div>
             </div>
@@ -5171,16 +5172,12 @@ function renderEtaEditedCard(){
     return o.trail && o.trail.some(function(h){return h.type==='eta';});
   });
 
-  // Classify each order
-  var classify = function(o){
-    if(PREPARED_STATUSES.includes(o.status)) return 'prepared';
-    if(o.eta && o.eta < todayStr) return 'delayed';
-    var edits=o.trail.filter(function(h){return h.type==='eta';});
-    if(edits.length){
-      var first=edits[0].from||'', last=(edits[edits.length-1].to||o.eta||'');
-      if(last>first) return 'delayed';
-    }
-    return 'delayed';
+  // Classify by comparing current ETA vs original ETA
+  var classify = function(o, origEta, currEta){
+    if(!origEta || !currEta) return 'ontime';
+    if(currEta < origEta) return 'early';
+    if(currEta > origEta) return 'delayed';
+    return 'ontime';
   };
 
   // Annotate
@@ -5191,26 +5188,29 @@ function renderEtaEditedCard(){
     var slip   = (origEta&&currEta)?daysBetween(origEta,currEta):0;
     var overdue= (currEta&&currEta<todayStr)?daysBetween(currEta,todayStr):0;
     var lastEdit= edits.length?edits[edits.length-1]:null;
-    return {o:o, flag:classify(o), edits:edits, origEta:origEta, currEta:currEta, slip:slip, overdue:overdue, lastEdit:lastEdit};
+    return {o:o, flag:classify(o,origEta,currEta), edits:edits, origEta:origEta, currEta:currEta, slip:slip, overdue:overdue, lastEdit:lastEdit};
   });
 
   var allCount      = annotated.length;
   var delayedCount  = annotated.filter(function(r){return r.flag==='delayed';}).length;
-  var preparedCount = annotated.filter(function(r){return r.flag==='prepared';}).length;
+  var earlyCount    = annotated.filter(function(r){return r.flag==='early';}).length;
+  var onTimeCount   = annotated.filter(function(r){return r.flag==='ontime';}).length;
   var totalSlip     = annotated.reduce(function(s,r){return s+Math.max(0,r.slip);},0);
   var avgSlip       = allCount?Math.round(totalSlip/allCount):0;
   var maxOverdue    = annotated.reduce(function(m,r){return Math.max(m,r.overdue);},0);
 
   // Update tab styles
-  ['all','delayed','prepared'].forEach(function(tab){
+  ['all','delayed','prepared','ontime'].forEach(function(tab){
     var btn=document.getElementById('etaTab'+tab.charAt(0).toUpperCase()+tab.slice(1));
     if(!btn) return;
     var active=_etaTab===tab;
-    var cnt = tab==='all'?allCount : tab==='delayed'?delayedCount:preparedCount;
-    var colors={all:'#1e293b',delayed:'#dc2626',prepared:'#16a34a'};
+    var colors={all:'#1e293b',delayed:'#dc2626',prepared:'#16a34a',ontime:'#1a73e8'};
     btn.style.background=active?colors[tab]:'transparent';
     btn.style.color=active?'#fff':'#94a3b8';
-    btn.textContent = tab==='all'?'All '+cnt : tab==='delayed'?'🔴 Delayed '+delayedCount:'🟢 May arrive early '+preparedCount;
+    if(tab==='all')      btn.textContent='All '+allCount;
+    else if(tab==='delayed')  btn.textContent='🔴 Delayed '+delayedCount;
+    else if(tab==='prepared') btn.textContent='🟢 May arrive early '+earlyCount;
+    else if(tab==='ontime')   btn.textContent='🔵 Arriving on time '+onTimeCount;
   });
 
   // Stats bar
@@ -5225,14 +5225,17 @@ function renderEtaEditedCard(){
     };
     sb+=chip('📋','total',allCount,'#f1f5f9','#1e293b');
     sb+=chip('🔴','delayed',delayedCount,'#fef2f2','#dc2626');
-    sb+=chip('🟢','preponed',preparedCount,'#f0fdf4','#16a34a');
+    sb+=chip('🟢','may arrive early',earlyCount,'#f0fdf4','#16a34a');
+    sb+=chip('🔵','arriving on time',onTimeCount,'#eff6ff','#1a73e8');
     if(avgSlip>0) sb+=chip('⏱','avg slip','+'+avgSlip+'d','#fffbeb','#d97706');
     if(maxOverdue>0) sb+=chip('⚠️','max overdue',maxOverdue+'d overdue','#fef2f2','#b91c1c');
     statsBar.innerHTML=sb;
   }
 
   // Filter
-  var rows = _etaTab==='all'?annotated:annotated.filter(function(r){return r.flag===_etaTab;});
+  var rows = _etaTab==='all'?annotated
+    :_etaTab==='prepared'?annotated.filter(function(r){return r.flag==='early';})
+    :annotated.filter(function(r){return r.flag===_etaTab;});
 
   if(!rows.length){
     listEl.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;color:#94a3b8;gap:6px"><div style="font-size:28px">📋</div><div style="font-size:12px;font-weight:600">No orders found</div></div>';
@@ -5241,8 +5244,10 @@ function renderEtaEditedCard(){
   }
 
   // Sort: delayed+most overdue first, then by slip desc
+  var flagOrder={delayed:0,ontime:1,early:2};
   rows.sort(function(a,b){
-    if(a.flag!==b.flag) return a.flag==='delayed'?-1:1;
+    var fo=(flagOrder[a.flag]||0)-(flagOrder[b.flag]||0);
+    if(fo!==0) return fo;
     if(b.overdue!==a.overdue) return b.overdue-a.overdue;
     return b.slip-a.slip;
   });
@@ -5252,8 +5257,9 @@ function renderEtaEditedCard(){
   rows.forEach(function(r){
     var o=r.o, edits=r.edits;
     var isDelayed = r.flag==='delayed';
-    var borderColor= isDelayed?'#dc2626':'#16a34a';
-    var bgColor    = isDelayed?'#fff8f8':'#f6fef6';
+    var isEarly   = r.flag==='early';
+    var borderColor= isDelayed?'#dc2626': isEarly?'#16a34a':'#1a73e8';
+    var bgColor    = isDelayed?'#fff8f8': isEarly?'#f6fef6':'#f0f7ff';
     var donStr     = 'DON-'+(o.groupDonId||o.id);
     var stColor    = (STAGE_COLOR&&STAGE_COLOR[o.status])||'#64748b';
     var isExpanded = _etaExpandedId===o.id;
@@ -5311,7 +5317,7 @@ function renderEtaEditedCard(){
 
     // Row top: flag pill + DON + customer + status badge + expand icon
     html+='<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">';
-    html+='<span style="background:'+borderColor+'18;color:'+borderColor+';border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800">'+(isDelayed?'🔴 Delayed':'🟢 May arrive early')+'</span>';
+    html+='<span style="background:'+borderColor+'18;color:'+borderColor+';border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800">'+(isDelayed?'🔴 Delayed':isEarly?'🟢 May arrive early':'🔵 Arriving on time')+'</span>';
     html+='<span style="font-size:12px;font-weight:800;color:#1a73e8">'+donStr+'</span>';
     html+='<span style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">'+_escHtml(o.customer||'—')+'</span>';
     html+='<span style="flex:1"></span>';
