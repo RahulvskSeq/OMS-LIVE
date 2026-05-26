@@ -25,8 +25,12 @@ export default function Orders() {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this order?')) return;
-    await dispatch(deleteOrder(id));
-    toast.success('Order deleted');
+    const res = await dispatch(deleteOrder(id));
+    if (res.meta.requestStatus === 'fulfilled') {
+      toast.success('Order deleted');
+    } else {
+      toast.error(res.payload || 'Failed to delete order');
+    }
   };
 
   const handleSave = async (data) => {
@@ -43,7 +47,7 @@ export default function Orders() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Header title="📋 Orders" actions={
+      <Header title="ð Orders" actions={
         <>
           <span className="text-xs text-slate-400 font-medium">{total} orders</span>
           {can('createOrder') && (
@@ -56,7 +60,7 @@ export default function Orders() {
       <div className="px-6 py-3 bg-white border-b border-slate-100 flex gap-3 flex-wrap">
         <input
           className="input w-56"
-          placeholder="Search orders…"
+          placeholder="Search ordersâ¦"
           value={filters.search}
           onChange={e => dispatch(setFilters({ search: e.target.value }))}
         />
@@ -98,17 +102,17 @@ export default function Orders() {
                       <td className="table-td text-slate-500 max-w-[140px] truncate">{o.product}</td>
                       <td className="table-td text-center font-medium">{o.qty}</td>
                       <td className="table-td text-slate-500">{fmtDate(o.orderDate)}</td>
-                      <td className="table-td font-medium">{fmtDateShort(o.eta) || '—'}</td>
-                      <td className="table-td text-slate-500 max-w-[120px] truncate">{o.vendor || '—'}</td>
+                      <td className="table-td font-medium">{fmtDateShort(o.eta) || 'â'}</td>
+                      <td className="table-td text-slate-500 max-w-[120px] truncate">{o.vendor || 'â'}</td>
                       <td className="table-td"><StatusBadge status={o.status} /></td>
                       <td className="table-td">
                         <div className="flex gap-1">
-                          <Link to={`/orders/${o._id}`} className="btn-icon text-sm" title="View">👁</Link>
+                          <Link to={`/orders/${o._id}`} className="btn-icon text-sm" title="View">ð</Link>
                           {can('editOrder') && (
-                            <button className="btn-icon text-sm" title="Edit" onClick={() => { setEditOrder(o); setShowForm(true); }}>✏️</button>
+                            <button className="btn-icon text-sm" title="Edit" onClick={() => { setEditOrder(o); setShowForm(true); }}>âï¸</button>
                           )}
                           {can('deleteOrder') && (
-                            <button className="btn-icon text-sm text-red-400" title="Delete" onClick={() => handleDelete(o._id)}>🗑</button>
+                            <button className="btn-icon text-sm text-red-400" title="Delete" onClick={() => handleDelete(o._id)}>ð</button>
                           )}
                         </div>
                       </td>
@@ -126,9 +130,9 @@ export default function Orders() {
         {/* Pagination */}
         {pages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-4">
-            <button className="btn-secondary btn-sm" disabled={page === 1} onClick={() => dispatch(setPage(page - 1))}>← Prev</button>
+            <button className="btn-secondary btn-sm" disabled={page === 1} onClick={() => dispatch(setPage(page - 1))}>â Prev</button>
             <span className="text-sm text-slate-500">Page {page} of {pages}</span>
-            <button className="btn-secondary btn-sm" disabled={page === pages} onClick={() => dispatch(setPage(page + 1))}>Next →</button>
+            <button className="btn-secondary btn-sm" disabled={page === pages} onClick={() => dispatch(setPage(page + 1))}>Next â</button>
           </div>
         )}
       </div>
