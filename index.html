@@ -15831,5 +15831,27 @@ function _updateChipStates(){
 })();
 </script>
 
+<script>
+(function(){
+  var _BEURL='https://web-production-3ead93.up.railway.app';
+  var _JWT='stencil_jwt_v1';
+  var _WMAP={
+    'WIPE_ORDERS':'/api/admin/wipe-orders',
+    'WIPE_PRODUCTS':'/api/admin/wipe-products',
+    'WIPE_CUSTOMERS':'/api/admin/wipe-customers',
+    'WIPE_VENDORS':'/api/admin/wipe-suppliers',
+    'WIPE_USERS':'/api/admin/wipe-users',
+    'WIPE_ROLES':'/api/admin/wipe-roles'
+  };
+  var _oa=window.audit;
+  window.audit=function(action){
+    if(_WMAP[action]){
+      var t=localStorage.getItem(_JWT);
+      fetch(_BEURL+_WMAP[action],{method:'DELETE',headers:{Authorization:'Bearer '+t}}).catch(function(){});
+    }
+    return _oa ? _oa.apply(this,arguments) : undefined;
+  };
+})();
+</script>
 </body>
 </html>
