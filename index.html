@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+<!DOCTPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pending Order Management System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fontsgstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -15843,6 +15843,8 @@ function _updateChipStates(){
     'WIPE_USERS':'/api/admin/wipe-users',
     'WIPE_ROLES':'/api/admin/wipe-roles'
   };
+
+  /* ── Intercept window.audit() to fire MongoDB deletes on wipe ── */
   var _oa=window.audit;
   window.audit=function(action){
     if(_WMAP[action]){
@@ -15851,6 +15853,55 @@ function _updateChipStates(){
     }
     return _oa ? _oa.apply(this,arguments) : undefined;
   };
+
+  /* ── After data loads, sync in-memory arrays → localStorage ── */
+  var _syncDone=false;
+  var _syncObs=new MutationObserver(function(muts){
+    if(_syncDone) return;
+    for(var m of muts){
+      for(var n of m.removedNodes){
+        if(n.id==='_bridgeLoader'){
+          _syncDone=true;
+          _syncObs.disconnect();
+          setTimeout(function(){
+            try{ if(typeof persistData==='function') persistData(); }catch(e){}
+            try{ if(typeof persistOrders==='function') persistOrders(); }catch(e){}
+          },300);
+          return;
+        }
+      }
+    }
+  });
+  document.addEventListener('DOMContentLoaded',function(){
+    _syncObs.observe(document.body,{childList:true,subtree:true});
+  });
+
+  /* ── Wrap saveProduct / saveCustomer / saveVendor with error toasts ── */
+  function _wrapSave(fnName,label){
+    var orig=window[fnName];
+    if(typeof orig!=='function') return;
+    window[fnName]=async function(){
+      await orig.apply(this,arguments);
+      /* Give the async API call 3s to set _id; warn if it didn't */
+      await new Promise(function(r){setTimeout(r,3000);});
+      var arr = fnName==='saveProduct'?products:fnName==='saveCustomer'?customers:vendors;
+      if(!arr) return;
+      var last=arr[arr.length-1];
+      if(last&&!last._id&&typeof showToast==='function'){
+        showToast('⚠️ '+label+' saved locally but NOT synced to server — please check your connection and try again.','error');
+      }
+    };
+  }
+  /* Wait for page ready before wrapping */
+  var _wrapInterval=setInterval(function(){
+    if(typeof saveProduct==='function'&&typeof saveCustomer==='function'&&typeof saveVendor==='function'){
+      clearInterval(_wrapInterval);
+      _wrapSave('saveProduct','Product');
+      _wrapSave('saveCustomer','Customer');
+      _wrapSave('saveVendor','Vendor');
+    }
+  },500);
+  setTimeout(function(){clearInterval(_wrapInterval);},15000);
 })();
 </script>
 </body>
