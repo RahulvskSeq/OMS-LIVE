@@ -11738,25 +11738,24 @@ function markOrderBilled(id,orderDate){
   const o=orders.find(x=>x.id===id&&(!orderDate||x.orderDate===orderDate));
   if(!o||o.status!=='Purchased') return;
   const prev=o.status;
-  o.status='Billed';
+  o.status='Billed';o.billedDate=new Date().toISOString().slice(0,10);
   trailLog(o,'status','Status changed',prev,'Billed','Marked billed in Deliveries page');
   audit('STATUS_CHANGE',`DON-${o.groupDonId||o.id} → Purchased ➜ Billed`,'order',o.id);
   persistOrders();
   buildSidebar();
-  showToast(`DON-${o.groupDonId||o.id} marked Billed ✅`,'success');
-  renderDeliveries();
-}
-
-function bulkMarkBilled(groupDonId){
+  showToast(`DON-${o.groupDonId||o.id} markfunction bulkMarkBilled(groupDonId){
   const affected=orders.filter(o=>o.status==='Purchased'&&(o.groupDonId||o.id)===groupDonId);
   affected.forEach(o=>{
-    o.status='Billed';
+    o.status='Billed';o.billedDate=new Date().toISOString().slice(0,10);
     trailLog(o,'status','Status changed','Purchased','Billed','Bulk delivery from Deliveries page');
     audit('STATUS_CHANGE',`DON-${o.groupDonId||o.id} → Purchased ➜ Billed · bulk`,'order',o.id);
   });
   persistOrders();
   buildSidebar();
   showToast(`${affected.length} order${affected.length>1?'s':''} marked Billed ✅`,'success');
+  renderDeliveries();
+}
+ked Billed ✅`,'success');
   renderDeliveries();
 }
 
@@ -14660,7 +14659,7 @@ window.renderReports=function(){
   const overdue=pipeline.filter(o=>o.eta&&new Date(o.eta)<now);
   const cancelled=all.filter(o=>o.status==='Cancelled');
   // Avg fulfillment
-  const fulfilTimes=billed.filter(o=>o.orderDate&&o.billedDate).map(o=>Math.round((new Date(o.billedDate)-new Date(o.orderDate))/(1000*86400)));
+  const fulfilTimes=billed.filter(o=>o.orderDate&&(o.billedDate||_maGetBilledAt(o))).map(o=>{const bd=o.billedDate||(_maGetBilledAt(o)||'').slice(0,10);return Math.round((new Date(bd)-new Date(o.orderDate))/(864e5));}).filter(d=>d>=0);
   const avgFulfill=fulfilTimes.length?Math.round(fulfilTimes.reduce((a,b)=>a+b,0)/fulfilTimes.length):null;
   // Set KPIs
   const se=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
