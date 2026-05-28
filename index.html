@@ -11768,7 +11768,11 @@ function markOrderBilled(id,orderDate){
   audit('STATUS_CHANGE',`DON-${o.groupDonId||o.id} → Purchased ➜ Billed`,'order',o.id);
   persistOrders();
   buildSidebar();
-  showToast(`DON-${o.groupDonId||o.id} markfunction bulkMarkBilled(groupDonId){
+  showToast(`DON-${o.groupDonId||o.id} marked Billed ✅`,'success');
+  renderDeliveries();
+}
+
+function bulkMarkBilled(groupDonId){
   const affected=orders.filter(o=>o.status==='Purchased'&&(o.groupDonId||o.id)===groupDonId);
   affected.forEach(o=>{
     o.status='Billed';o.billedDate=new Date().toISOString().slice(0,10);
@@ -11778,9 +11782,6 @@ function markOrderBilled(id,orderDate){
   persistOrders();
   buildSidebar();
   showToast(`${affected.length} order${affected.length>1?'s':''} marked Billed ✅`,'success');
-  renderDeliveries();
-}
-ked Billed ✅`,'success');
   renderDeliveries();
 }
 
