@@ -10128,6 +10128,17 @@ function beData(){
         <button onclick="beWipeVendors()" style="width:100%;padding:8px;background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Clear All Suppliers</button>
       </div>
 
+      <!-- Transporters -->
+      <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #8b5cf6">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#1e293b">🚛 Transporters</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">All transporter / truck vendor records</div>
+          </div>
+        </div>
+        <button onclick="beWipeTransporters()" style="width:100%;padding:8px;background:#f5f3ff;color:#6d28d9;border:1.5px solid #ddd6fe;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🗑 Clear All Transporters</button>
+      </div>
+
       <!-- Users -->
       <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #ec4899">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -10255,6 +10266,8 @@ function beWipeEverything(){
       products.length=0; nextId.product=1;
       customers.length=0; nextId.customer=1;
       vendors.length=0; nextId.vendor=1;
+      tranvporters.length=0; nextTranvporterId=1;
+      try{localStorage.removeItem('tranvporters_v1');localStorage.removeItem('oms_nextTranvporterId');}catch(e){}
       const sa=users.find(u=>u.role==='superadmin');
       users.length=0; if(sa)users.push(sa); nextId.user=sa?sa.id+1:2;
       customRoles.length=0; saveCustomRoles();
@@ -10319,6 +10332,17 @@ function beWipeUsers(){
     userPermOverrides={}; saveUserPermOverrides();
     audit('WIPE_USERS','All users cleared (superadmin kept)','system','');
     showToast('Users cleared (Super Admin kept)','success');
+    beTab('data');
+  });
+}
+
+function beWipeTransporters(){
+  _showWipeModal('Clear Transporter Master','Deletes ALL transporter / truck vendor records.',()=>{
+    tranvporters.length=0; nextTranvporterId=1;
+    try{localStorage.removeItem('tranvporters_v1');localStorage.removeItem('oms_nextTranvporterId');}catch(e){}
+    audit('WIPE_TRANSPORTERS','All transporters deleted','system','');
+    showToast('Transporter master cleared','success');
+    populateDropdowns();
     beTab('data');
   });
 }
@@ -15061,6 +15085,7 @@ function _updateChipStates(){
       remark:o.remark||'', comments:o.comments||[],
       transitDetails:o.transitDetails||{},
       isStockAddition:o.isStockAddition||false, linkedToOrderId:o.linkedToOrderId||null,
+      billedDate:o.billedDate||'',
     };
   }
 
@@ -15089,6 +15114,7 @@ function _updateChipStates(){
       transitDetails:o.transitDetails||{},
       isStockAddition:o.isStockAddition||false, linkedToOrderId:o.linkedToOrderId||null,
       createdBy:o.createdBy||'',
+      billedDate:o.billedDate||'',
     };
   }
 
@@ -15839,6 +15865,7 @@ function _updateChipStates(){
     'WIPE_PRODUCTS':'/api/admin/wipe-products',
     'WIPE_CUSTOMERS':'/api/admin/wipe-customers',
     'WIPE_VENDORS':'/api/admin/wipe-suppliers',
+    'WIPE_TRANSPORTERS':'/api/admin/wipe-transporters',
     'WIPE_USERS':'/api/admin/wipe-users',
     'WIPE_ROLES':'/api/admin/wipe-roles'
   };
