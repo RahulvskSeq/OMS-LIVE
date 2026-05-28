@@ -171,7 +171,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .c-approved{border-color:#0ea5e9}.c-approved .kpi-value{color:#0ea5e9}
 .c-po{border-color:#f59e0b}.c-po .kpi-value{color:#f59e0b}
 .c-transit{border-color:#f97316}.c-transit .kpi-value{color:#f97316}
-.c-tranvporter{border-color:#8b5cf6}.c-tranvporter .kpi-value{color:#8b5cf6}
+.c-transporter{border-color:#8b5cf6}.c-transporter .kpi-value{color:#8b5cf6}
 .c-warehouse{border-color:#10b981}.c-warehouse .kpi-value{color:#10b981}
 .c-purchased{border-color:#06b6d4}.c-purchased .kpi-value{color:#06b6d4}
 .c-billed{border-color:#16a34a}.c-billed .kpi-value{color:#16a34a}
@@ -234,7 +234,7 @@ tr.cmt-row td{padding-top:0;border-top:none}
 .b-approved{background:#e0f2fe;color:#0369a1}
 .b-po{background:#fef3c7;color:#92400e}
 .b-transit{background:#fff7ed;color:#c2410c}
-.b-tranvporter{background:#f5f3ff;color:#6d28d9}
+.b-transporter{background:#f5f3ff;color:#6d28d9}
 .b-warehouse{background:#d1fae5;color:#065f46}
 .b-purchased{background:#cffafe;color:#155e75}
 .b-grn{background:#fef3c7;color:#92400e}
@@ -1025,25 +1025,25 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
       </div>
     </div>
 
-    <!-- ── TRANVPORTER MASTER ── -->
-    <div id="pg-tranvporters" class="page">
+    <!-- ── TRANSPORTER MASTER ── -->
+    <div id="pg-transporters" class="page">
       <div class="card">
         <div class="card-header">
-          <h3>🚛 Transporter / Truck Vendor <span id="tranvporterCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
-          <div id="tranvporterHeaderActions"></div>
+          <h3>🚛 Transporter / Truck Vendor <span id="transporterCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="transporterHeaderActions"></div>
         </div>
         <div class="tbar">
-          <input class="srch" id="tranvporterSrch" type="text" placeholder="🔍 Name / city…" style="width:210px">
-          <select class="fsel" id="tranvporterTypeFilter">
+          <input class="srch" id="transporterSrch" type="text" placeholder="🔍 Name / city…" style="width:210px">
+          <select class="fsel" id="transporterTypeFilter">
             <option value="">All Types</option>
-            <option value="Tranvporter">Transporter</option>
+            <option value="Transporter">Transporter</option>
             <option value="Truck Vendor">Truck Vendor</option>
             <option value="Both">Both</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="renderTranvportersTable()">🔍 Search</button>
-          <button class="btn btn-outline btn-sm" onclick="clearTranvporterFilters()">✕ Clear</button>
+          <button class="btn btn-primary btn-sm" onclick="renderTransportersTable()">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" onclick="clearTransporterFilters()">✕ Clear</button>
         </div>
-        <div id="tranvportersTableWrap"></div>
+        <div id="transportersTableWrap"></div>
       </div>
     </div>
 
@@ -1263,7 +1263,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
         <div style="display:flex;gap:6px;flex-wrap:wrap" id="shipStatusFilters">
           <button onclick="_shipFilterStatus('')" id="shipF-all" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">All</button>
           <button onclick="_shipFilterStatus('In Transit')" id="shipF-intransit" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🚚 In Transit</button>
-          <button onclick="_shipFilterStatus('At Transporter')" id="shipF-attranvporter" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🏢 At Transporter</button>
+          <button onclick="_shipFilterStatus('At Transporter')" id="shipF-attransporter" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🏢 At Transporter</button>
           <button onclick="_shipFilterStatus('Warehouse')" id="shipF-warehouse" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🏪 Warehouse</button>
         </div>
       </div>
@@ -1713,17 +1713,17 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 </div>
 </div>
 
-<!-- Tranvporter Modal -->
-<div class="overlay" id="tranvporterModal">
+<!-- Transporter Modal -->
+<div class="overlay" id="transporterModal">
 <div class="modal modal-sm">
-  <div class="mhdr"><h3 id="tranvporterModalTitle">Add Transporter</h3><button class="mclose" onclick="closeModal('tranvporterModal')">✕</button></div>
+  <div class="mhdr"><h3 id="transporterModalTitle">Add Transporter</h3><button class="mclose" onclick="closeModal('transporterModal')">✕</button></div>
   <div class="mbody">
     <div class="fg"><label>Name *</label><input id="tmName" type="text" placeholder="Transporter / truck vendor name"></div>
     <div class="frow">
       <div class="fg"><label>Type *</label>
         <select id="tmType">
           <option value="">Select type…</option>
-          <option value="Tranvporter">Transporter</option>
+          <option value="Transporter">Transporter</option>
           <option value="Truck Vendor">Truck Vendor</option>
           <option value="Both">Both</option>
         </select>
@@ -1741,8 +1741,8 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
     </div>
   </div>
   <div class="mftr">
-    <button class="btn btn-outline" onclick="closeModal('tranvporterModal')">Cancel</button>
-    <button class="btn btn-primary" onclick="saveTranvporter()">💾 Save</button>
+    <button class="btn btn-outline" onclick="closeModal('transporterModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveTransporter()">💾 Save</button>
   </div>
 </div>
 </div>
@@ -1815,13 +1815,13 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 
   <div style="overflow-y:auto;flex:1;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
 
-    <!-- ── Tranvport Details ── -->
+    <!-- ── Transport Details ── -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div>
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Mode *</div>
         <div id="transitModeGroup" style="display:flex;gap:4px">
-          <label id="tmTranvporter" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
-            <input type="radio" name="transitMode" value="Tranvporter" onchange="highlightTransitMode();_transitClearErr('transitModeGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🚛 Transporter
+          <label id="tmTransporter" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
+            <input type="radio" name="transitMode" value="Transporter" onchange="highlightTransitMode();_transitClearErr('transitModeGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🚛 Transporter
           </label>
           <label id="tmTruck" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
             <input type="radio" name="transitMode" value="Truck" onchange="highlightTransitMode();_transitClearErr('transitModeGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🛻 Truck
@@ -2300,7 +2300,7 @@ const STATUS_COLORS = {
 };
 const STATUS_BADGE = {
   'Order':'b-ordered','Approved':'b-approved','PO Raised':'b-po','In Transit':'b-transit',
-  'At Transporter':'b-tranvporter','Warehouse':'b-warehouse','GRN':'b-grn','Purchased':'b-purchased',
+  'At Transporter':'b-transporter','Warehouse':'b-warehouse','GRN':'b-grn','Purchased':'b-purchased',
   'Billed':'b-billed','Cancelled':'b-cancelled'
 };
 const STATUS_ICONS = ['📝','✅','📄','🚚','🚛','🏭','📋','💰','🎉'];
@@ -2329,9 +2329,10 @@ function saveUsers(){try{localStorage.setItem('oms_users_v1',JSON.stringify(user
 // VENDORS
 let vendors = (()=>{try{const s=localStorage.getItem('vendors_v2');return s?JSON.parse(s):[];}catch(e){return[];}})();
 
-// TRANVPORTERS
-let tranvporters = (()=>{try{const s=localStorage.getItem('tranvporters_v1');return s?JSON.parse(s):[];}catch(e){return[];}})();
-let nextTranvporterId = (()=>{try{return parseInt(localStorage.getItem('oms_nextTranvporterId')||'1');}catch(e){return 1;}})();
+// TRANSPORTERS — migrate stale localStorage key from old typo name
+(()=>{try{const old=localStorage.getItem('tranvporters_v1');if(old&&!localStorage.getItem('transporters_v1')){localStorage.setItem('transporters_v1',old);localStorage.removeItem('tranvporters_v1');}const oId=localStorage.getItem('oms_nextTranvporterId');if(oId&&!localStorage.getItem('oms_nextTransporterId')){localStorage.setItem('oms_nextTransporterId',oId);localStorage.removeItem('oms_nextTranvporterId');}}catch(e){}})();
+let transporters = (()=>{try{const s=localStorage.getItem('transporters_v1');return s?JSON.parse(s):[];}catch(e){return[];}})();
+let nextTransporterId = (()=>{try{return parseInt(localStorage.getItem('oms_nextTransporterId')||'1');}catch(e){return 1;}})();
 
 // CUSTOMERS
 let customers = (()=>{try{const s=localStorage.getItem('customers_v2');return s?JSON.parse(s):[];}catch(e){return[];}})();
@@ -2379,10 +2380,10 @@ function _saveGrnNum(){try{localStorage.setItem(LS_GRN_KEY,String(nextGrnNum));}
     if(savedId){const n=parseInt(savedId);if(n>nextOrderId)nextOrderId=n;}
   }catch(e){}
 })();
-// ── Migrate 'At Tranvporter' → 'At Transporter' in existing data ──
+// ── Migrate 'At Transporter' → 'At Transporter' in existing data ──
 (function(){
   let changed=false;
-  orders.forEach(o=>{if(o.status==='At Tranvporter'){o.status='At Transporter';changed=true;}});
+  orders.forEach(o=>{if(o.status==='At Transporter'){o.status='At Transporter';changed=true;}});
   if(changed){try{localStorage.setItem(LS_KEY,JSON.stringify(orders));}catch(e){}}
 })();
 // ── Migrate 'Delivered' → 'Billed' in existing saved data ──
@@ -2418,10 +2419,10 @@ function persistOrders(){
   vendors=[];
   customers=[];
   products=[];
-  tranvporters=[];
+  transporters=[];
   nextId={vendor:1,customer:1,product:1,user:16};
   nextProductId=1;
-  nextTranvporterId=1;
+  nextTransporterId=1;
   // Wipe all seed/dummy flags from localStorage
   ['oms_demo_seeded_v1','oms_200orders_seeded_v1','oms_200orders_seeded_v2',
    'oms_200orders_seeded_v3','oms_dummy_cleared_v1'].forEach(k=>localStorage.removeItem(k));
@@ -2432,10 +2433,10 @@ function persistOrders(){
     localStorage.setItem('vendors_v2',JSON.stringify([]));
     localStorage.setItem('customers_v2',JSON.stringify([]));
     localStorage.setItem('products_v2',JSON.stringify([]));
-    localStorage.setItem('tranvporters_v1',JSON.stringify([]));
+    localStorage.setItem('transporters_v1',JSON.stringify([]));
     localStorage.setItem('oms_nextId_v1',JSON.stringify({vendor:1,customer:1,product:1,user:16}));
     localStorage.setItem('oms_nextProductId','1');
-    localStorage.setItem('oms_nextTranvporterId','1');
+    localStorage.setItem('oms_nextTransporterId','1');
     localStorage.setItem('oms_all_dummy_cleared_v1','1');
   }catch(e){}
 })();
@@ -2974,7 +2975,7 @@ function buildSidebar(){
   ];
   const phase2Items=[
     {id:'ship-intransit',   icon:'🚚', label:'In Transit',     status:'In Transit',    role:'viewShipments'},
-    {id:'ship-tranvporter', icon:'🚛', label:'At Transporter', status:'At Transporter',role:'viewShipments'},
+    {id:'ship-transporter', icon:'🚛', label:'At Transporter', status:'At Transporter',role:'viewShipments'},
     {id:'ship-warehouse',   icon:'🏭', label:'Warehouse',      status:'Warehouse',     role:'viewShipments'},
   ];
   const phase3Items=[
@@ -2987,7 +2988,7 @@ function buildSidebar(){
     {id:'products',    icon:'🗂', label:'Products'},
     {id:'customers',   icon:'👥', label:'Customers'},
     {id:'vendors',     icon:'🏭', label:'Suppliers'},
-    {id:'tranvporters',icon:'🚛', label:'Transporters'},
+    {id:'transporters',icon:'🚛', label:'Transporters'},
   ];
   const bottomItems=[
     {id:'reports',     icon:'📈', label:'Reports',            role:'viewReports'},
@@ -2997,8 +2998,8 @@ function buildSidebar(){
     {id:'backend',     icon:'⚙️', label:'Backend / Settings', superadmin:true},
   ];
 
-  const masterPages=['products','customers','vendors','tranvporters'];
-  const shipPageIds={'In Transit':'ship-intransit','At Transporter':'ship-tranvporter','Warehouse':'ship-warehouse'};
+  const masterPages=['products','customers','vendors','transporters'];
+  const shipPageIds={'In Transit':'ship-intransit','At Transporter':'ship-transporter','Warehouse':'ship-warehouse'};
   const delivPageIds={'GRN':'deliv-grn','Purchased':'deliv-purchased','Billed':'deliv-billed','Cancelled':'deliv-cancelled'};
   const mastersOpen=masterPages.includes(currentPage);
 
@@ -3029,7 +3030,7 @@ function buildSidebar(){
       bdg=badge('#0d9488',n);
     }
     const isActive=(i.id===currentPage)||
-      (i.status&&shipPageIds[i.status]===currentPage&&['ship-intransit','ship-tranvporter','ship-warehouse'].includes(i.id))||
+      (i.status&&shipPageIds[i.status]===currentPage&&['ship-intransit','ship-transporter','ship-warehouse'].includes(i.id))||
       (i.status&&delivPageIds[i.status]===currentPage&&['deliv-purchased','deliv-billed'].includes(i.id))||
       (['pending-don','pending-vpo'].includes(i.id)&&currentPage===i.id);
     // Dashboard gets a tiny inline collapse-all / expand-all groups button
@@ -3055,7 +3056,7 @@ function buildSidebar(){
   // Determine which pages belong to each group for auto-open logic
   const ph1Pages=['orders','vendorpo','intransit'];
   const pendPages=['pending-don','pending-vpo'];
-  const ph2Pages=['ship-intransit','ship-tranvporter','ship-warehouse'];
+  const ph2Pages=['ship-intransit','ship-transporter','ship-warehouse'];
   const ph3Pages=['deliv-purchased','deliv-billed','deliv-cancelled'];
 
   // Auto-open the group containing the current page; remember user toggles
@@ -3257,11 +3258,11 @@ function navTo(page){
     return;
   }
 
-  // Phase 2 sub-nav: ship-intransit / ship-tranvporter / ship-warehouse
+  // Phase 2 sub-nav: ship-intransit / ship-transporter / ship-warehouse
   // Route all to pg-shipments, but pre-set the status filter
   const shipFilterMap={
     'ship-intransit':  'In Transit',
-    'ship-tranvporter':'At Transporter',
+    'ship-transporter':'At Transporter',
     'ship-warehouse':  'Warehouse'
   };
   if(shipFilterMap[page]){
@@ -3270,7 +3271,7 @@ function navTo(page){
     const ni=document.getElementById('nav-'+page);if(ni)ni.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     const pg=document.getElementById('pg-shipments');if(pg)pg.classList.add('active');
-    const shipTitles={'ship-intransit':'🚚 In Transit','ship-tranvporter':'🚛 At Transporter','ship-warehouse':'🏭 Warehouse'};
+    const shipTitles={'ship-intransit':'🚚 In Transit','ship-transporter':'🚛 At Transporter','ship-warehouse':'🏭 Warehouse'};
     document.getElementById('pageTitle').textContent=shipTitles[page];
     document.getElementById('topbarActions').innerHTML='';
     _updateTopbarCustomizeBtn();
@@ -3304,7 +3305,7 @@ function navTo(page){
     customers:'👥 Customer Master',custsearch:'🔎 Customer Search',vendorpo:'📤 Supplier PO',
     intransit:'🚚 Mark In Transit',shipments:'📦 Shipments',deliveries:'🎯 Deliveries',
     pending:'📦 Pending',
-    vendors:'🏭 Supplier Master',tranvporters:'🚛 Transporter / Truck Vendor Master',
+    vendors:'🏭 Supplier Master',transporters:'🚛 Transporter / Truck Vendor Master',
     departments:'🏢 Departments',
     reports:'📈 Reports',roles:'🔐 Role Management',users:'👤 User Management',backend:'⚙️ Backend / Settings'};
   const _ptEl=document.getElementById('pageTitle');
@@ -3338,7 +3339,7 @@ function renderPage(p){
   else if(p==='products'){setupProdActions();renderProductsTable();}
   else if(p==='customers'){setupCustActions();renderCustomersTable();}
   else if(p==='vendors'){setupVendActions();renderVendorsTable();}
-  else if(p==='tranvporters'){setupTranvporterActions();renderTranvportersTable();}
+  else if(p==='transporters'){setupTransporterActions();renderTransportersTable();}
   else if(p==='roles'){renderRolesPage();return;}
   else if(p==='users')renderUsersTable();
   else if(p==='reports')renderReports();
@@ -6744,15 +6745,15 @@ function _transitClearErr(fieldId){
 function _transitResetForm(prefillVendor=''){
   document.querySelectorAll('input[name="transitMode"]').forEach(r=>r.checked=false);
   document.querySelectorAll('input[name="materialForm"]').forEach(r=>r.checked=false);
-  ['tmTranvporter','tmTruck','mfRoll','mfFlat'].forEach(id=>{
+  ['tmTransporter','tmTruck','mfRoll','mfFlat'].forEach(id=>{
     const el=document.getElementById(id);if(el){el.style.borderColor='#e2e8f0';el.style.background='';}
   });
-  // Set defaults: Tranvporter mode + Roll form
-  const defMode=document.querySelector('input[name="transitMode"][value="Tranvporter"]');
+  // Set defaults: Transporter mode + Roll form
+  const defMode=document.querySelector('input[name="transitMode"][value="Transporter"]');
   if(defMode){defMode.checked=true;highlightTransitMode();}
   const defForm=document.querySelector('input[name="materialForm"][value="Roll"]');
   if(defForm){defForm.checked=true;highlightMaterialForm();}
-  _refreshTranvporterDatalist();
+  _refreshTransporterDatalist();
   document.getElementById('transitVendorName').value=prefillVendor;
   _showTransitDaysHint(prefillVendor);
   document.getElementById('transitLR').value='';
@@ -7076,8 +7077,8 @@ function openBulkTransitModal(vpoNum){
 }
 function highlightTransitMode(){
   const val=document.querySelector('input[name="transitMode"]:checked')?.value;
-  document.getElementById('tmTranvporter').style.borderColor=val==='Tranvporter'?'#1a73e8':'#e2e8f0';
-  document.getElementById('tmTranvporter').style.background=val==='Tranvporter'?'#e8f0fe':'';
+  document.getElementById('tmTransporter').style.borderColor=val==='Transporter'?'#1a73e8':'#e2e8f0';
+  document.getElementById('tmTransporter').style.background=val==='Transporter'?'#e8f0fe':'';
   document.getElementById('tmTruck').style.borderColor=val==='Truck'?'#1a73e8':'#e2e8f0';
   document.getElementById('tmTruck').style.background=val==='Truck'?'#e8f0fe':'';
 }
@@ -7160,7 +7161,7 @@ function confirmTransit(){
     // ── Auto-ETA: dispatch date + transit days (override or master) ──
     (()=>{
       const overrideDays=_getTransitDaysOverride();
-      const tp=tranvporters.find(t=>t.name===vendor);
+      const tp=transporters.find(t=>t.name===vendor);
       const useDays=overrideDays||(tp?.transitDays);
       if(!useDays) return;
       const dispatchDate=new Date(details.at);
@@ -8864,24 +8865,24 @@ function delVendor(id){
 }
 
 // ═══════════════════════════════════════
-//  TRANVPORTER MASTER
+//  TRANSPORTER MASTER
 // ═══════════════════════════════════════
-let editingTranvporter=null;
-function setupTranvporterActions(){
-  document.getElementById('tranvporterHeaderActions').innerHTML=can('editMaster')
-    ?`<button class="btn btn-primary btn-sm" onclick="openTranvporterModal()">+ Add Transporter</button>`:'';
+let editingTransporter=null;
+function setupTransporterActions(){
+  document.getElementById('transporterHeaderActions').innerHTML=can('editMaster')
+    ?`<button class="btn btn-primary btn-sm" onclick="openTransporterModal()">+ Add Transporter</button>`:'';
 }
-function renderTranvportersTable(){
-  const q=(document.getElementById('tranvporterSrch')?.value||'').toLowerCase();
-  const typeF=(document.getElementById('tranvporterTypeFilter')?.value||'');
-  const data=tranvporters.filter(t=>{
+function renderTransportersTable(){
+  const q=(document.getElementById('transporterSrch')?.value||'').toLowerCase();
+  const typeF=(document.getElementById('transporterTypeFilter')?.value||'');
+  const data=transporters.filter(t=>{
     const matchQ=!q||[t.name,t.location,t.contact].some(x=>(x||'').toLowerCase().includes(q));
     const matchType=!typeF||t.type===typeF;
     return matchQ&&matchType;
   });
-  const cnt=document.getElementById('tranvporterCount');
-  if(cnt)cnt.textContent=`(${tranvporters.length} total)`;
-  document.getElementById('tranvportersTableWrap').innerHTML=data.length
+  const cnt=document.getElementById('transporterCount');
+  if(cnt)cnt.textContent=`(${transporters.length} total)`;
+  document.getElementById('transportersTableWrap').innerHTML=data.length
     ?`<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Location</th><th style="text-align:center">Transit Days</th><th>Contact</th><th>Phone</th><th>WhatsApp</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
     ${data.map(t=>`<tr>
       <td style="color:#64748b;font-size:12px">${t.id}</td>
@@ -8897,19 +8898,19 @@ function renderTranvportersTable(){
       <td style="font-size:12px;color:#64748b">${t.notes||'—'}</td>
       <td><div class="acol">
         <button class="btn btn-xs" onclick="_masterAI('transporter','${t.name.replace(/'/g,"\\'")}')" title="AI deep-dive for ${t.name.replace(/'/g,"&#39;")}" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;padding:3px 8px;cursor:pointer;white-space:nowrap">🤖 AI</button>
-        ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openTranvporterModal(${t.id})">✏️ Edit</button>
-        <button class="btn btn-danger btn-xs" onclick="delTranvporter(${t.id})">🗑</button>`:''}
+        ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openTransporterModal(${t.id})">✏️ Edit</button>
+        <button class="btn btn-danger btn-xs" onclick="delTransporter(${t.id})">🗑</button>`:''}
       </div></td></tr>`).join('')}
     </tbody></table></div>`
     :`<div class="empty"><div class="ei">🚛</div><h3>No transporters found</h3><p>Add your first transporter / truck vendor</p></div>`;
 }
-function openTranvporterModal(id=null){
-  editingTranvporter=id;
-  document.getElementById('tranvporterModalTitle').textContent=id?'Edit Transporter':'Add Transporter';
+function openTransporterModal(id=null){
+  editingTransporter=id;
+  document.getElementById('transporterModalTitle').textContent=id?'Edit Transporter':'Add Transporter';
   ['tmName','tmLocation','tmContact','tmPhone','tmWa','tmNotes','tmTransitDays'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('tmType').value='';
   if(id){
-    const t=tranvporters.find(x=>x.id===id);if(!t)return;
+    const t=transporters.find(x=>x.id===id);if(!t)return;
     document.getElementById('tmName').value=t.name||'';
     document.getElementById('tmType').value=t.type||'';
     document.getElementById('tmLocation').value=t.location||'';
@@ -8919,17 +8920,17 @@ function openTranvporterModal(id=null){
     document.getElementById('tmNotes').value=t.notes||'';
     document.getElementById('tmTransitDays').value=t.transitDays||'';
   }
-  showModal('tranvporterModal');
+  showModal('transporterModal');
 }
-function saveTranvporter(){
+function saveTransporter(){
   const name=document.getElementById('tmName').value.trim();
   const type=document.getElementById('tmType').value;
   if(!name){showToast('Name is required','error');return;}
   if(!type){showToast('Please select a type','error');return;}
   const waNum=document.getElementById('tmWa').value.trim().replace(/\D/g,'');
   const transitDays=parseInt(document.getElementById('tmTransitDays').value)||0;
-  if(editingTranvporter){
-    const t=tranvporters.find(x=>x.id===editingTranvporter);
+  if(editingTransporter){
+    const t=transporters.find(x=>x.id===editingTransporter);
     if(t){
       t.name=name;t.type=type;t.location=document.getElementById('tmLocation').value.trim();
       t.contact=document.getElementById('tmContact').value.trim();
@@ -8938,8 +8939,8 @@ function saveTranvporter(){
       t.transitDays=transitDays||undefined;
     }
   }else{
-    tranvporters.push({
-      id:nextTranvporterId++,name,type,
+    transporters.push({
+      id:nextTransporterId++,name,type,
       location:document.getElementById('tmLocation').value.trim(),
       contact:document.getElementById('tmContact').value.trim(),
       phone:document.getElementById('tmPhone').value.trim(),
@@ -8949,28 +8950,28 @@ function saveTranvporter(){
     });
   }
   persistData();
-  _refreshTranvporterDatalist();
-  showToast(editingTranvporter?'Transporter updated ✓':'Transporter added ✓','success');
-  closeModal('tranvporterModal');
-  renderTranvportersTable();
+  _refreshTransporterDatalist();
+  showToast(editingTransporter?'Transporter updated ✓':'Transporter added ✓','success');
+  closeModal('transporterModal');
+  renderTransportersTable();
 }
-function delTranvporter(id){
+function delTransporter(id){
   if(!confirm('Delete this transporter?'))return;
-  tranvporters=tranvporters.filter(t=>t.id!==id);
+  transporters=transporters.filter(t=>t.id!==id);
   persistData();
-  _refreshTranvporterDatalist();
+  _refreshTransporterDatalist();
   showToast('Transporter deleted','success');
-  renderTranvportersTable();
+  renderTransportersTable();
 }
-function clearTranvporterFilters(){
-  const s=document.getElementById('tranvporterSrch');if(s)s.value='';
-  const tf=document.getElementById('tranvporterTypeFilter');if(tf)tf.value='';
-  renderTranvportersTable();
+function clearTransporterFilters(){
+  const s=document.getElementById('transporterSrch');if(s)s.value='';
+  const tf=document.getElementById('transporterTypeFilter');if(tf)tf.value='';
+  renderTransportersTable();
 }
 function _showTransitDaysHint(vendorName){
   const inp=document.getElementById('transitDaysOverride');
   if(!inp)return;
-  const tp=tranvporters.find(t=>t.name.toLowerCase()===vendorName.trim().toLowerCase());
+  const tp=transporters.find(t=>t.name.toLowerCase()===vendorName.trim().toLowerCase());
   if(tp&&tp.transitDays){ inp.value=tp.transitDays; _syncTransitDaysFromDays(); }
   else { _syncTransitDaysFromDays(); }
 }
@@ -9050,10 +9051,10 @@ function _getTransitDaysOverride(){
   }
   return null;
 }
-function _refreshTranvporterDatalist(){
+function _refreshTransporterDatalist(){
   const dl=document.getElementById('transitVendorList');
   if(!dl)return;
-  dl.innerHTML=tranvporters.map(t=>`<option value="${t.name}">${t.name}${t.location?' — '+t.location:''}</option>`).join('');
+  dl.innerHTML=transporters.map(t=>`<option value="${t.name}">${t.name}${t.location?' — '+t.location:''}</option>`).join('');
 }
 
 // ═══════════════════════════════════════
@@ -10266,8 +10267,8 @@ function beWipeEverything(){
       products.length=0; nextId.product=1;
       customers.length=0; nextId.customer=1;
       vendors.length=0; nextId.vendor=1;
-      tranvporters.length=0; nextTranvporterId=1;
-      try{localStorage.removeItem('tranvporters_v1');localStorage.removeItem('oms_nextTranvporterId');}catch(e){}
+      transporters.length=0; nextTransporterId=1;
+      try{localStorage.removeItem('transporters_v1');localStorage.removeItem('oms_nextTransporterId');}catch(e){}
       const sa=users.find(u=>u.role==='superadmin');
       users.length=0; if(sa)users.push(sa); nextId.user=sa?sa.id+1:2;
       customRoles.length=0; saveCustomRoles();
@@ -10338,8 +10339,8 @@ function beWipeUsers(){
 
 function beWipeTransporters(){
   _showWipeModal('Clear Transporter Master','Deletes ALL transporter / truck vendor records.',()=>{
-    tranvporters.length=0; nextTranvporterId=1;
-    try{localStorage.removeItem('tranvporters_v1');localStorage.removeItem('oms_nextTranvporterId');}catch(e){}
+    transporters.length=0; nextTransporterId=1;
+    try{localStorage.removeItem('transporters_v1');localStorage.removeItem('oms_nextTransporterId');}catch(e){}
     audit('WIPE_TRANSPORTERS','All transporters deleted','system','');
     showToast('Transporter master cleared','success');
     populateDropdowns();
@@ -10373,9 +10374,9 @@ function beExportAll(){
     _version:3,
     exportedAt:new Date().toISOString(),
     exportedBy:currentUser.name||currentUser.username,
-    orders, users, vendors, customers, products, tranvporters, auditLogs,
+    orders, users, vendors, customers, products, transporters, auditLogs,
     sysSettings, customRoles, userPermOverrides,
-    nextOrderId, nextPoNum, auditNextId, nextProductId, nextTranvporterId,
+    nextOrderId, nextPoNum, auditNextId, nextProductId, nextTransporterId,
     nextId:{...nextId}
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -10416,9 +10417,9 @@ function _doRestoreFromFile(file){
       try{localStorage.setItem('vendors_v2',          JSON.stringify(d.vendors||[]));}catch(e){}
       try{localStorage.setItem('customers_v2',        JSON.stringify(d.customers||[]));}catch(e){}
       try{localStorage.setItem('products_v2',         JSON.stringify(d.products||[]));}catch(e){}
-      try{localStorage.setItem('tranvporters_v1',     JSON.stringify(d.tranvporters||[]));}catch(e){}
+      try{localStorage.setItem('transporters_v1',     JSON.stringify(d.transporters||[]));}catch(e){}
       try{localStorage.setItem('oms_nextProductId',   String(d.nextProductId||1));}catch(e){}
-      try{localStorage.setItem('oms_nextTranvporterId',String(d.nextTranvporterId||1));}catch(e){}
+      try{localStorage.setItem('oms_nextTransporterId',String(d.nextTransporterId||1));}catch(e){}
       try{localStorage.setItem('oms_nextPoNum',       String(d.nextPoNum||1));}catch(e){}
       try{localStorage.setItem(LS_AUDIT,              JSON.stringify(d.auditLogs||[]));}catch(e){}
       try{localStorage.setItem(LS_AUDIT_ID,           String(d.auditNextId||1));}catch(e){}
@@ -10971,7 +10972,7 @@ let _shipStatusFilter='';
 function _shipFilterStatus(s){
   _shipStatusFilter=s;
   // Update filter pill styles
-  ['all','intransit','attranvporter','warehouse'].forEach(k=>{
+  ['all','intransit','attransporter','warehouse'].forEach(k=>{
     const el=document.getElementById('shipF-'+k);
     if(el){el.style.background='#f1f5f9';el.style.color='#64748b';el.style.border='1px solid #e2e8f0';}
   });
@@ -11000,7 +11001,7 @@ function renderShipments(){
     const lr=(o.transitDetails?.lr)||'(No LR)';
     if(!lrMap[lr]){
       lrMap[lr]={
-        lr, tranvporter:o.transitDetails?.vendor||'—',
+        lr, transporter:o.transitDetails?.vendor||'—',
         mode:o.transitDetails?.mode||'—', form:o.transitDetails?.form||'—',
         lrDate:o.transitDetails?.lrDate||'', dispatchAt:o.transitDetails?.at||'',
         orders:[], vendors:new Set()
@@ -11016,7 +11017,7 @@ function renderShipments(){
   // Search filter
   if(q){
     entries=entries.filter(([lr,data])=>{
-      if(lr.toLowerCase().includes(q)||data.tranvporter.toLowerCase().includes(q)) return true;
+      if(lr.toLowerCase().includes(q)||data.transporter.toLowerCase().includes(q)) return true;
       if([...data.vendors].some(v=>v.toLowerCase().includes(q))) return true;
       return data.orders.some(o=>{
         const inv=o.vendorInvoiceNum||'';
@@ -11107,7 +11108,7 @@ function renderShipments(){
             <span style="font-size:22px;font-weight:900;color:#0f172a;font-family:monospace;letter-spacing:.5px;line-height:1">
               ${lr==='(No LR)'?'<span style="color:#94a3b8">—</span>':`<span style="font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:0;vertical-align:middle">LR</span> <span style="color:${hdrColor};font-size:20px">–</span> ${lr}`}
             </span>
-            <span style="font-size:12px;font-weight:700;color:#fff;background:${hdrColor};padding:4px 12px;border-radius:20px;box-shadow:0 2px 8px ${hdrColor}50;display:inline-flex;align-items:center;gap:5px;flex-shrink:0">🚛 ${data.tranvporter}</span>
+            <span style="font-size:12px;font-weight:700;color:#fff;background:${hdrColor};padding:4px 12px;border-radius:20px;box-shadow:0 2px 8px ${hdrColor}50;display:inline-flex;align-items:center;gap:5px;flex-shrink:0">🚛 ${data.transporter}</span>
             <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0">
               <div style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.7);border:1px solid ${hdrColor}25;border-radius:10px;padding:5px 12px">
                 <span style="font-size:15px;font-weight:900;color:${hdrColor}">${totalQty}</span>
@@ -11213,7 +11214,7 @@ function _localDateStr(d){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 // Auto-ETA on stage transitions:
-// At Tranvporter / Warehouse → tomorrow  |  Purchased → today
+// At Transporter / Warehouse → tomorrow  |  Purchased → today
 function _autoEtaOnStage(o, newStatus){
   const today=new Date();
   today.setHours(0,0,0,0);
@@ -12461,7 +12462,7 @@ const MASTER_SCHEMAS = {
     push:(rec)=>{products.push(rec);},
     persist:()=>{persistData();}
   },
-  tranvporters:{
+  transporters:{
     label:'Transporter Master', sheet:'Transporters',
     fields:[
       {key:'name',     label:'Name',           required:true},
@@ -12472,9 +12473,9 @@ const MASTER_SCHEMAS = {
       {key:'whatsapp', label:'WhatsApp Number',required:false},
       {key:'notes',    label:'Notes',          required:false}
     ],
-    getData:()=>tranvporters,
-    nextId:()=>nextTranvporterId++,
-    push:(rec)=>{tranvporters.push(rec);},
+    getData:()=>transporters,
+    nextId:()=>nextTransporterId++,
+    push:(rec)=>{transporters.push(rec);},
     persist:()=>{persistData();}
   }
 };
@@ -12485,9 +12486,9 @@ function persistData(){
     localStorage.setItem('vendors_v2',JSON.stringify(vendors));
     localStorage.setItem('customers_v2',JSON.stringify(customers));
     localStorage.setItem('products_v2',JSON.stringify(products));
-    localStorage.setItem('tranvporters_v1',JSON.stringify(tranvporters));
+    localStorage.setItem('transporters_v1',JSON.stringify(transporters));
     localStorage.setItem('oms_nextProductId',String(nextProductId));
-    localStorage.setItem('oms_nextTranvporterId',String(nextTranvporterId));
+    localStorage.setItem('oms_nextTransporterId',String(nextTransporterId));
     // sync nextId counters from actual data
     if(vendors.length)  nextId.vendor   = Math.max(nextId.vendor,   Math.max(...vendors.map(x=>x.id||0))+1);
     if(customers.length)nextId.customer = Math.max(nextId.customer, Math.max(...customers.map(x=>x.id||0))+1);
@@ -13226,10 +13227,10 @@ setupVendActions=function(){
   document.getElementById('vendHeaderActions').innerHTML=`<div style="display:flex;gap:8px;align-items:center">${addBtn}${_masterBtns('vendors')}</div>`;
 };
 
-const _origSetupTranvporter=setupTranvporterActions;
-setupTranvporterActions=function(){
-  const addBtn=can('editMaster')?`<button class="btn btn-primary btn-sm" onclick="openTranvporterModal()">+ Add Transporter</button>`:'';
-  document.getElementById('tranvporterHeaderActions').innerHTML=`<div style="display:flex;gap:8px;align-items:center">${addBtn}${_masterBtns('tranvporters')}</div>`;
+const _origSetupTransporter=setupTransporterActions;
+setupTransporterActions=function(){
+  const addBtn=can('editMaster')?`<button class="btn btn-primary btn-sm" onclick="openTransporterModal()">+ Add Transporter</button>`:'';
+  document.getElementById('transporterHeaderActions').innerHTML=`<div style="display:flex;gap:8px;align-items:center">${addBtn}${_masterBtns('transporters')}</div>`;
 };
 
 // Single hidden file input used by the Upload label override
@@ -15225,14 +15226,14 @@ function _updateChipStates(){
 
     try{
       const r=await _req('GET','/api/transporters');
-      tranvporters=(r.data||[]).map((t,i)=>({
+      transporters=(r.data||[]).map((t,i)=>({
         id:i+1,_id:t._id,name:t.name||'',type:t.type||'',
         location:t.city||t.address||'',
         transitDays:t.avgTransitDays||t.transitDays||0,
         contact:t.contact||t.contactPerson||'',
         phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''
       }));
-      nextTranvporterId=tranvporters.length+1;
+      nextTransporterId=transporters.length+1;
     }catch(e){console.warn('transporters:',e);}
 
     try{
@@ -15294,12 +15295,12 @@ function _updateChipStates(){
       if(products.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/products?isActive=true'); products=(r.data||[]).map((p,i)=>({id:i+1,_id:p._id,code:p.code||'',name:p.name||'',category:p.category||'',defaultVendor:p.defaultVendor||'',unit:p.unit||'pcs',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''})); nextProductId=products.length+1; }catch(ex){} }
     }
     /* Transporters */
-    if(tranvporters.length === 0){
-      const ls = _ls('tranvporters_v1');
+    if(transporters.length === 0){
+      const ls = _ls('transporters_v1');
       for(const t of ls){
         try{ await _req('POST','/api/transporters',{name:t.name||'',type:t.type||'',city:t.location||'',avgTransitDays:t.transitDays||0,phone:t.phone||'',contact:t.contact||'',whatsapp:t.whatsapp||'',notes:t.notes||''}); synced++; }catch(ex){}
       }
-      if(tranvporters.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/transporters?isActive=true'); tranvporters=(r.data||[]).map((t,i)=>({id:i+1,_id:t._id,name:t.name||'',type:t.type||'',location:t.city||'',transitDays:t.avgTransitDays||0,contact:t.contact||'',phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''})); nextTranvporterId=tranvporters.length+1; }catch(ex){} }
+      if(transporters.length === 0 && ls.length > 0){ try{ const r=await _req('GET','/api/transporters?isActive=true'); transporters=(r.data||[]).map((t,i)=>({id:i+1,_id:t._id,name:t.name||'',type:t.type||'',location:t.city||'',transitDays:t.avgTransitDays||0,contact:t.contact||'',phone:t.phone||'',whatsapp:t.whatsapp||'',notes:t.notes||''})); nextTransporterId=transporters.length+1; }catch(ex){} }
     }
 
     if(synced > 0 && typeof showToast==='function') showToast('✅ Migrated '+synced+' records from local storage to server','success');
@@ -15563,12 +15564,12 @@ function _updateChipStates(){
     }catch(e){console.warn('product sync:',e);}
   };
 
-  /* ════ OVERRIDE: saveTranvporter ════ */
-  const _origSaveTrans=window.saveTranvporter;
-  window.saveTranvporter=async function(){
-    const wasEditing=typeof editingTranvporter!=='undefined'?editingTranvporter:null;
+  /* ════ OVERRIDE: saveTransporter ════ */
+  const _origSaveTrans=window.saveTransporter;
+  window.saveTransporter=async function(){
+    const wasEditing=typeof editingTransporter!=='undefined'?editingTransporter:null;
     _origSaveTrans.call(this);
-    const trans=wasEditing?tranvporters.find(t=>t.id===wasEditing):tranvporters[tranvporters.length-1];
+    const trans=wasEditing?transporters.find(t=>t.id===wasEditing):transporters[transporters.length-1];
     if(!trans) return;
     try{
       const pl={name:trans.name,type:trans.type||'',city:trans.location||'',avgTransitDays:trans.transitDays||0,phone:trans.phone||'',contact:trans.contact||'',whatsapp:trans.whatsapp||'',notes:trans.notes||''};
@@ -15656,10 +15657,10 @@ function _updateChipStates(){
     catch(e){ console.warn('vendor delete sync:',e); }
   };
 
-  /* ════ OVERRIDE: delTranvporter — remove transporter from MongoDB ════ */
-  const _origDelTransDel = window.delTranvporter;
-  window.delTranvporter = async function(id){
-    const trans = tranvporters.find(t=>t.id===id);
+  /* ════ OVERRIDE: delTransporter — remove transporter from MongoDB ════ */
+  const _origDelTransDel = window.delTransporter;
+  window.delTransporter = async function(id){
+    const trans = transporters.find(t=>t.id===id);
     const apiId = trans?._id;
     _origDelTransDel.call(this, id);
     if(!apiId) return;
@@ -15720,9 +15721,9 @@ function _updateChipStates(){
       try{localStorage.setItem('vendors_v2',JSON.stringify(d.vendors||[]));}catch(ex){}
       try{localStorage.setItem('customers_v2',JSON.stringify(d.customers||[]));}catch(ex){}
       try{localStorage.setItem('products_v2',JSON.stringify(d.products||[]));}catch(ex){}
-      try{localStorage.setItem('tranvporters_v1',JSON.stringify(d.tranvporters||[]));}catch(ex){}
+      try{localStorage.setItem('transporters_v1',JSON.stringify(d.transporters||[]));}catch(ex){}
       try{localStorage.setItem('oms_nextProductId',String(d.nextProductId||1));}catch(ex){}
-      try{localStorage.setItem('oms_nextTranvporterId',String(d.nextTranvporterId||1));}catch(ex){}
+      try{localStorage.setItem('oms_nextTransporterId',String(d.nextTransporterId||1));}catch(ex){}
       try{localStorage.setItem('oms_demo_seeded_v1','1');}catch(ex){}
       try{localStorage.setItem('oms_data_version','2');}catch(ex){}
       if(d.nextId) try{localStorage.setItem('oms_nextId_v1',JSON.stringify(d.nextId));}catch(ex){}
@@ -15746,7 +15747,7 @@ function _updateChipStates(){
         try{ await _req('POST','/api/products',{name:p.name||'',code:p.code||'',category:p.category||'',unit:p.unit||'pcs',defaultVendor:p.defaultVendor||'',parentCode:p.parentCode||'',parentAlias:p.parentAlias||''}); synced++; }
         catch(ex){ failed++; }
       }
-      for(const t of (d.tranvporters||[])){
+      for(const t of (d.transporters||[])){
         try{ await _req('POST','/api/transporters',{name:t.name||'',type:t.type||'',city:t.location||'',avgTransitDays:t.transitDays||0,phone:t.phone||'',contact:t.contact||'',whatsapp:t.whatsapp||'',notes:t.notes||''}); synced++; }
         catch(ex){ failed++; }
       }
@@ -15803,7 +15804,7 @@ function _updateChipStates(){
     const type  = _mapperState && _mapperState.type;
     const mode  = (document.querySelector('input[name="imMode"]:checked')||{value:'add'}).value;
     const prevIds = type ? new Set((
-      type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:tranvporters
+      type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:transporters
     ).map(r=>r.id)) : new Set();
 
     /* Run the original import (modifies arrays + localStorage) */
@@ -15817,20 +15818,20 @@ function _updateChipStates(){
       customers:    '/api/customers',
       vendors:      '/api/suppliers',
       products:     '/api/products',
-      tranvporters: '/api/transporters'
+      transporters: '/api/transporters'
     };
     const plMap = {
       customers:    r=>({name:r.name||'',phone:r.phone||'',email:r.email||'',address:r.addr||r.address||'',city:r.city||'',contact:r.contact||'',whatsapp:r.whatsapp||'',salesExec:r.salesExec||'',biller:r.biller||'',manager:r.manager||''}),
       vendors:      r=>({name:r.name||'',city:r.location||'',leadTimeDays:parseInt(r.deliveryDays)||7,phone:r.phone||'',whatsapp:r.whatsapp||'',contact:r.contact||''}),
       products:     r=>({name:r.name||r.code||'',code:r.code||'',category:r.category||'',unit:r.unit||'pcs',defaultVendor:r.defaultVendor||'',parentCode:r.parentCode||'',parentAlias:r.parentAlias||''}),
-      tranvporters: r=>({name:r.name||'',type:r.type||'',city:r.location||'',avgTransitDays:parseInt(r.transitDays)||0,phone:r.phone||'',contact:r.contact||'',whatsapp:r.whatsapp||'',notes:r.notes||''})
+      transporters: r=>({name:r.name||'',type:r.type||'',city:r.location||'',avgTransitDays:parseInt(r.transitDays)||0,phone:r.phone||'',contact:r.contact||'',whatsapp:r.whatsapp||'',notes:r.notes||''})
     };
 
     const ep   = epMap[type];
     const mkPl = plMap[type];
     if(!ep || !mkPl) return;
 
-    const arr     = type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:tranvporters;
+    const arr     = type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:transporters;
     /* New records: added this session (id wasn't in array before) and have no _id yet */
     const newRecs = arr.filter(r => !prevIds.has(r.id) && !r._id);
     if(!newRecs.length) return;
