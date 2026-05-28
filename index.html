@@ -15534,7 +15534,7 @@ function _updateChipStates(){
       const pl={name:cust.name,phone:cust.phone||'',email:cust.email||'',address:cust.addr||'',city:cust.city||'',contact:cust.contact||'',whatsapp:cust.whatsapp||'',salesExec:cust.salesExec||'',biller:cust.biller||'',manager:cust.manager||''};
       if(cust._id){await _req('PUT','/api/customers/'+cust._id,pl);}
       else{const r=await _req('POST','/api/customers',pl);if(r.data)cust._id=r.data._id;}
-    }catch(e){console.warn('customer sync:',e);}
+    }catch(e){console.warn('customer sync:',e);if(typeof showToast==='function'){const m=e?.message||'Server error';showToast(m.toLowerCase().includes('duplicate')?'❌ Customer already exists':'❌ Customer not saved: '+m,'error');}}
   };
 
   /* ════ OVERRIDE: saveVendor ════ */
@@ -15548,7 +15548,7 @@ function _updateChipStates(){
       const pl={name:vend.name,city:vend.location||'',leadTimeDays:vend.deliveryDays||7,phone:vend.phone||'',whatsapp:vend.whatsapp||'',contact:vend.contact||''};
       if(vend._id){await _req('PUT','/api/suppliers/'+vend._id,pl);}
       else{const r=await _req('POST','/api/suppliers',pl);if(r.data)vend._id=r.data._id;}
-    }catch(e){console.warn('vendor sync:',e);}
+    }catch(e){console.warn('vendor sync:',e);if(typeof showToast==='function'){const m=e?.message||'Server error';showToast(m.toLowerCase().includes('duplicate')?'❌ Vendor already exists':'❌ Vendor not saved: '+m,'error');}}
   };
 
   /* ════ OVERRIDE: saveProduct ════ */
@@ -15562,7 +15562,19 @@ function _updateChipStates(){
       const pl={name:prod.name,code:prod.code||'',category:prod.category||'',unit:prod.unit||'pcs',defaultVendor:prod.defaultVendor||'',parentCode:prod.parentCode||'',parentAlias:prod.parentAlias||''};
       if(prod._id){await _req('PUT','/api/products/'+prod._id,pl);}
       else{const r=await _req('POST','/api/products',pl);if(r.data)prod._id=r.data._id;}
-    }catch(e){console.warn('product sync:',e);}
+    }catch(e){
+      console.warn('product sync:',e);
+      const msg=e?.message||'Server error';
+      if(typeof showToast==='function'){
+        if(msg.toLowerCase().includes('duplicate')||msg.toLowerCase().includes('code')){
+          showToast('❌ Product code already exists — use a different code','error');
+        } else if(e?.status===401){
+          showToast('❌ Session expired — please log out and log back in','error');
+        } else {
+          showToast('❌ Product not saved to server: '+msg,'error');
+        }
+      }
+    }
   };
 
   /* ════ OVERRIDE: saveTransporter ════ */
