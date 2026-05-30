@@ -15183,10 +15183,14 @@ function _updateChipStates(){
         const r=await _req('GET',`/api/orders?page=${page}&limit=200`);
         all=all.concat(r.data||[]); pages=r.pages||1; page++;
       }
+      const _SORD=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased','Billed','Cancelled'];
+      const _sp=s=>{const i=_SORD.indexOf(s);return i>=0?i:-1;};
       const _seenKeys=new Map(); const _deduped=[];
       for(const o of all){
         const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
-        if(!_seenKeys.has(key)){ _seenKeys.set(key,true); _deduped.push(o); }
+        if(!_seenKeys.has(key)){_seenKeys.set(key,{o,sp:_sp(o.status),sq:o.seqId||0});_deduped.push(o);}
+        else{const p=_seenKeys.get(key);const cs=_sp(o.status);const cq=o.seqId||0;
+          if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_deduped.indexOf(p.o);if(pi>=0)_deduped[pi]=o;_seenKeys.set(key,{o,sp:cs,sq:cq});}}
       }
       orders=_deduped.map(_toLocal);
       if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
