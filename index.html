@@ -11345,15 +11345,16 @@ function renderDeliveries(){
   if(!container)return;
   const q=(document.getElementById('delivSearch')?.value||'').trim().toLowerCase();
   // Build DON-level maps — use String keys throughout for consistency
+  const _visOrds=getVisibleOrders();
   const _dk=o=>String(o.groupDonId||o.id);
   const donHasGrn=new Set(
-    orders.filter(o=>o.status==='GRN').map(_dk)
+    _visOrds.filter(o=>o.status==='GRN').map(_dk)
   );
   const donHasPurchased=new Set(
-    orders.filter(o=>o.status==='Purchased').map(_dk)
+    _visOrds.filter(o=>o.status==='Purchased').map(_dk)
   );
   const donHasBilled=new Set(
-    orders.filter(o=>o.status==='Billed').map(_dk)
+    _visOrds.filter(o=>o.status==='Billed').map(_dk)
   );
   // Partial DONs: have BOTH Purchased AND Billed orders — must stay in BOTH tabs
   const donPartial=new Set(
@@ -11366,7 +11367,7 @@ function renderDeliveries(){
 
   // Cancelled tab: DONs where at least one item is Cancelled
   const donHasCancelled=new Set(
-    orders.filter(o=>o.status==='Cancelled').map(_dk)
+    _visOrds.filter(o=>o.status==='Cancelled').map(_dk)
   );
 
   let qualifiedDonKeys;
@@ -11385,7 +11386,7 @@ function renderDeliveries(){
   }
 
   // Fetch ALL line items for those DON groups (any status)
-  let delivOrders=orders.filter(o=>qualifiedDonKeys.has(String(o.groupDonId||o.id)));
+  let delivOrders=_visOrds.filter(o=>qualifiedDonKeys.has(String(o.groupDonId||o.id)));
 
   if(q){
     const matchedDons=new Set(
