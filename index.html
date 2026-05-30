@@ -5856,8 +5856,8 @@ function getVisibleOrders(){
   if(r==='biller'){
     return orders.filter(o=>{
       const ob=(o.biller||'').trim().toLowerCase();
-      return (b&&ob===b)||(n&&ob===n)||(o.createdBy||'').toLowerCase()===u;
-    }).filter(_hideOldBilled);
+      return (b&&ob===b)||(n&&ob===n)||(u&&ob===u)||(o.createdBy||'').toLowerCase()===u;
+    });
   }
 
   /* ── Salesman: see orders where they are the salesExec,
@@ -5865,8 +5865,8 @@ function getVisibleOrders(){
   if(r==='salesman'){
     return orders.filter(o=>{
       const os=(o.salesExec||'').trim().toLowerCase();
-      return (n&&os===n)||(o.createdBy||'').toLowerCase()===u;
-    }).filter(_hideOldBilled);
+      return (n&&os===n)||(u&&os===u)||(o.createdBy||'').toLowerCase()===u;
+    });
   }
 
   /* ── All other roles: permission-based ── */
@@ -7236,7 +7236,10 @@ function confirmTransit(){
   _bulkLRSelected.clear(); _updateBulkLRBar();
 }
 
+let _statusChanging=false;
 function changeStatusDirect(id, sel){
+  if(_statusChanging){sel.value=(orders.find(x=>x.id===id)||{}).status||sel.value;return;}
+  _statusChanging=true; setTimeout(()=>{_statusChanging=false;},1500);
   const o=orders.find(x=>x.id===id);
   if(!o||!sel.value)return;
   // Order ↔ Approved only — block any other transition from these two stages
@@ -15357,8 +15360,8 @@ function _updateChipStates(){
     if(cachedUsr && cachedUsr.username){
       /* Rebuild user object from cache */
       let usr = users.find(u=>u.username===cachedUsr.username);
-      if(!usr){ usr={id:cachedUsr.id,username:cachedUsr.username,name:cachedUsr.name||cachedUsr.username,role:cachedUsr.role,password:''}; users.push(usr); }
-      usr.role=cachedUsr.role; usr.name=cachedUsr.name||cachedUsr.username; usr.id=cachedUsr.id;
+      if(!usr){ usr={id:cachedUsr.id,username:cachedUsr.username,name:cachedUsr.name||cachedUsr.username,role:cachedUsr.role,biller:cachedUsr.biller||'',password:''}; users.push(usr); }
+      usr.role=cachedUsr.role; usr.name=cachedUsr.name||cachedUsr.username; usr.id=cachedUsr.id; if(cachedUsr.biller) usr.biller=cachedUsr.biller;
       _authReady=true; currentUser=usr;
       _applyPerms({id:usr.id,permissions:cachedUsr.permissions||[]});
       /* Override any stale oms_session that restoreSession may have used */
@@ -15413,8 +15416,8 @@ function _updateChipStates(){
         if(lerr){ lerr.style.display='none'; }
         let usr=users.find(u=>u.username===au.username);
         if(!usr){ usr={id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,password:''}; users.push(usr); }
-        usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
-        try{ localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,permissions:au.permissions||[]})); }catch(e){}
+        usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id; if(au.biller) usr.biller=au.biller;
+        try{ localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,biller:usr.biller||'',permissions:au.permissions||[]})); }catch(e){}
         await _loadAll();
         await _migrateFromLocalStorage();
         _launchApp(usr,au);
@@ -15445,7 +15448,7 @@ function _updateChipStates(){
       if(lerr){lerr.style.display='none';lerr.style.color='';}
       const au=r.user;
       let usr=users.find(x=>x.username===au.username);
-      if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,password:''};users.push(usr);}
+      if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,biller:au.biller||'',password:''};users.push(usr);}
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
       await _loadAll();
       _authReady=true;
