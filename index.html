@@ -8218,11 +8218,39 @@ function openOrderModal(id=null){
   const stockChk=document.getElementById('omIsStock');
   if(stockChk){stockChk.checked=false;_toggleStockMode(false);}
 
-  // Auto-assign biller & sales exec from logged-in user (read-only)
+  // Biller & Sales Exec: auto-fill for biller/salesman, editable+required for admin/manager
   const billerEl=document.getElementById('omBillerDisp');
   const salesEl=document.getElementById('omSalesDisp');
-  if(billerEl) billerEl.value=currentUser.role==='biller'?(currentUser.name||currentUser.username):'';
-  if(salesEl) salesEl.value=currentUser.role==='salesman'?(currentUser.name||currentUser.username):'';
+  const _isBillerRole=currentUser.role==='biller';
+  const _isSalesRole=currentUser.role==='salesman';
+  if(billerEl){
+    billerEl.value=_isBillerRole?(currentUser.name||currentUser.username):'';
+    billerEl.readOnly=_isBillerRole;
+    billerEl.style.background=_isBillerRole?'#f8fafc':'#fff';
+    billerEl.style.borderColor=_isBillerRole?'#e2e8f0':'#d1d5db';
+    billerEl.placeholder=_isBillerRole?'Auto-assigned':'Select biller *';
+    billerEl.setAttribute('list','_billerDL');
+  }
+  if(salesEl){
+    salesEl.value=_isSalesRole?(currentUser.name||currentUser.username):'';
+    salesEl.readOnly=_isSalesRole;
+    salesEl.style.background=_isSalesRole?'#f8fafc':'#fff';
+    salesEl.style.borderColor=_isSalesRole?'#e2e8f0':'#d1d5db';
+    salesEl.placeholder=_isSalesRole?'Auto-assigned':'Select sales exec *';
+    salesEl.setAttribute('list','_salesDL');
+  }
+  if(!_isBillerRole&&!_isSalesRole){
+    let dl1=document.getElementById('_billerDL');
+    if(!dl1){dl1=document.createElement('datalist');dl1.id='_billerDL';document.body.appendChild(dl1);}
+    dl1.innerHTML=users.filter(u=>u.role==='biller').map(u=>'<option value="'+(u.name||u.username)+'">').join('');
+    let dl2=document.getElementById('_salesDL');
+    if(!dl2){dl2=document.createElement('datalist');dl2.id='_salesDL';document.body.appendChild(dl2);}
+    dl2.innerHTML=users.filter(u=>['salesman','manager','admin','superadmin'].includes(u.role)).map(u=>'<option value="'+(u.name||u.username)+'">').join('');
+    const bLbl=billerEl&&billerEl.closest&&billerEl.closest('.fg')&&billerEl.closest('.fg').querySelector('label');
+    const sLbl=salesEl&&salesEl.closest&&salesEl.closest('.fg')&&salesEl.closest('.fg').querySelector('label');
+    if(bLbl&&bLbl.textContent.indexOf('*')<0) bLbl.textContent='Biller *';
+    if(sLbl&&sLbl.textContent.indexOf('*')<0) sLbl.textContent='Sales Executive *';
+  }
 
   // Rebuild vendor options
   document.getElementById('omVend').innerHTML='<option value="">— Select Vendor —</option>'+_vendOptions();
@@ -8254,6 +8282,8 @@ function openOrderModal(id=null){
     document.getElementById('omDate').value=o.orderDate;
     document.getElementById('omPo').value=o.poNum||'';
     document.getElementById('omRemark').value=''; // new comment goes here; existing thread shown in 💬 modal
+    if(!_isBillerRole&&billerEl&&o.biller) billerEl.value=o.biller;
+    if(!_isSalesRole&&salesEl&&o.salesExec) salesEl.value=o.salesExec;
     addProductLine(false, o.product, o.qty, o.eta);
   } else {
     // New order — start with one blank line
@@ -8416,8 +8446,10 @@ function saveOrder(){
   } else {
     const po=document.getElementById('omPo').value;
     const remark=document.getElementById('omRemark').value;
-    const autoBiller=currentUser.role==='biller'?(currentUser.biller||currentUser.username):'';
-    const autoSales=currentUser.role==='salesman'?(currentUser.name||currentUser.username):'';
+    const autoBiller=currentUser.role==='biller'?(currentUser.biller||currentUser.name||currentUser.username):((document.getElementById('omBillerDisp')&&document.getElementById('omBillerDisp').value||'').trim());
+    const autoSales=currentUser.role==='salesman'?(currentUser.name||currentUser.username):((document.getElementById('omSalesDisp')&&document.getElementById('omSalesDisp').value||'').trim());
+    if(!autoBiller){showToast('❌ Biller is required — please select a biller','error');var _be=document.getElementById('omBillerDisp');if(_be)_be.focus();return;}
+    if(!autoSales){showToast('❌ Sales Executive is required — please select one','error');var _se=document.getElementById('omSalesDisp');if(_se)_se.focus();return;}
     const groupDonId=nextOrderId; // all lines in this submission share one visible DON
     lineData.forEach(line=>{
       const vend=getVendor(line.prod);
