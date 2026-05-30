@@ -15183,12 +15183,10 @@ function _updateChipStates(){
         const r=await _req('GET',`/api/orders?page=${page}&limit=200`);
         all=all.concat(r.data||[]); pages=r.pages||1; page++;
       }
-      const _deduped=[]; const _seen={};
+      const _seenKeys=new Map(); const _deduped=[];
       for(const o of all){
-        const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.groupDonId||o.seqId||'');
-        if(_seen[key]){
-          const prev=_seen[key]; if((o.seqId||0)>(prev.seqId||0)){_seen[key]=o;_deduped[_deduped.indexOf(prev)]=o;}
-        } else { _seen[key]=o; _deduped.push(o); }
+        const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
+        if(!_seenKeys.has(key)){ _seenKeys.set(key,true); _deduped.push(o); }
       }
       orders=_deduped.map(_toLocal);
       if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
