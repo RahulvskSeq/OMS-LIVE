@@ -5863,6 +5863,7 @@ function getVisibleOrders(){
       const ob=(o.biller||'').trim().toLowerCase(); if(ob)ids.add(ob);
       const oc=(o.createdBy||'').trim().toLowerCase(); if(oc)ids.add(oc);
       const cm=_cmB[o.customer]; if(cm)ids.add(cm);
+      (o.billerHistory||[]).forEach(x=>{const v=(x+'').trim().toLowerCase(); if(v)ids.add(v);});
       return ids.size ? _hit(ids) : (oc===u);
     });
   }
@@ -5875,6 +5876,7 @@ function getVisibleOrders(){
       const os=(o.salesExec||'').trim().toLowerCase(); if(os)ids.add(os);
       const oc=(o.createdBy||'').trim().toLowerCase(); if(oc)ids.add(oc);
       const cm=_cmS[o.customer]; if(cm)ids.add(cm);
+      (o.salesHistory||[]).forEach(x=>{const v=(x+'').trim().toLowerCase(); if(v)ids.add(v);});
       return ids.size ? _hit(ids) : (oc===u);
     });
   }
@@ -15126,6 +15128,7 @@ function _updateChipStates(){
       createdBy:o.createdBy||'', isStockOrder:o.isStockOrder||false,
       /* Fields that must survive refresh — kept in sync with _toAPI */
       biller:o.biller||'', salesExec:o.salesExec||'',
+      billerHistory:o.billerHistory||[], salesHistory:o.salesHistory||[],
       cancelReason:o.cancelReason||'', cancelledBy:o.cancelledBy||'', cancelledAt:o.cancelledAt||'',
       grnNo:o.grnNo||'', grnDate:o.grnDate||'', grnBy:o.grnBy||'', grnRemarks:o.grnRemarks||'',
       purchVoucherNo:o.purchVoucherNo||'', physGrnNo:o.physGrnNo||'', physGrnDate:o.physGrnDate||'',
