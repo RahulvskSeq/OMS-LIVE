@@ -15089,7 +15089,7 @@ function _updateChipStates(){
     }
 
     /* Ensure live auto-refresh runs for every entry path (login, reload, session restore) */
-    if(typeof _startPoll==='function' && currentUser) _startPoll();
+    if(typeof _startPoll==='function' && currentUser){ _startPoll(); if(typeof _startStream==='function') _startStream(); }
   }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
@@ -15533,6 +15533,7 @@ function _updateChipStates(){
   /* ════ OVERRIDE: doLogout ════ */
   window.doLogout=function(){
     _stopPoll();
+    if(typeof _stopStream==='function') _stopStream();
     _authReady=false;
     localStorage.removeItem(_JWT_KEY);
     localStorage.removeItem(_USR_KEY);
@@ -15600,6 +15601,17 @@ function _updateChipStates(){
     _pollTimer=setInterval(_pollOrders,30000); // every 30 seconds
   }
   function _stopPoll(){if(_pollTimer){clearInterval(_pollTimer);_pollTimer=null;}}
+
+  /* ════ LIVE STREAM (SSE) — instant push, falls back to the 30s poll ════ */
+  let _es=null, _liveDebounce=null;
+  function _startStream(){
+    if(_es) return;
+    try{
+      _es=new EventSource(_API+'/api/stream');
+      _es.addEventListener('order', ()=>{ clearTimeout(_liveDebounce); _liveDebounce=setTimeout(()=>{ try{_pollOrders();}catch(e){} }, 400); });
+    }catch(e){}
+  }
+  function _stopStream(){ if(_es){ try{_es.close();}catch(e){} _es=null; } }
 
   /* ════ ORDER SYNC ════ */
   let _syncTimer=null;
