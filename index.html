@@ -14901,7 +14901,7 @@ function _checkDuplicate(custName){
         const billerEl=document.getElementById('omBillerDisp');
         const salesEl=document.getElementById('omSalesDisp');
         if(billerEl&&!billerEl.value&&cust.biller) billerEl.value=cust.biller;
-        if(salesEl&&!salesEl.value&&cust.salesExec) salesEl.value=cust.salesExec;
+        if(salesEl&&!salesEl.readOnly&&cust.salesExec) salesEl.value=cust.salesExec;
       }
     }
   };
