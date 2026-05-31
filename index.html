@@ -15549,7 +15549,10 @@ function _updateChipStates(){
   let _pollTimer=null;
   let _polling=false;
   async function _pollOrders(){
-    if(_polling||_syncing) return;
+    window.__pd=window.__pd||{calls:0,polling:0,syncing:0,focus:0,modal:0,nochange:0,applied:0,fetched:-1,err:null};
+    window.__pd.calls++;
+    if(_polling){window.__pd.polling++;return;}
+    if(_syncing){window.__pd.syncing++;return;}
     // Don't poll if any form input is focused (user is typing) or any modal is open
     const focused=document.activeElement;
     if(focused&&['INPUT','TEXTAREA','SELECT'].includes(focused.tagName)) return;
@@ -15571,11 +15574,11 @@ function _updateChipStates(){
         if(!_sk.has(key)){_sk.set(key,{o,sp:_sp2(o.status),sq:o.seqId||0});_dd.push(o);}
         else{const p=_sk.get(key);const cs=_sp2(o.status);const cq=o.seqId||0;if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_dd.indexOf(p.o);if(pi>=0)_dd[pi]=o;_sk.set(key,{o,sp:cs,sq:cq});}}
       }
-      const fresh=_dd.map(_toLocal);
+      const fresh=_dd.map(_toLocal); window.__pd.fetched=fresh.length;
       // Check if anything changed
       const oldStr=JSON.stringify(orders.map(o=>o._id+'|'+o.status+':'+o.id).sort());
       const newStr=JSON.stringify(fresh.map(o=>o._id+'|'+o.status+':'+o.id).sort());
-      if(oldStr!==newStr){
+      if(oldStr===newStr) window.__pd.nochange++; if(oldStr!==newStr){ window.__pd.applied++;
         // Merge: keep local unsaved changes, update everything else
         const localDirty=new Set(Object.keys(_snap).filter(id=>_snap[id]!==JSON.stringify(orders.find(o=>String(o.id)===String(id)))));
         orders=fresh.map(f=>{
@@ -15593,7 +15596,7 @@ function _updateChipStates(){
         if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
         if(typeof buildSidebar==='function') buildSidebar();
       }
-    }catch(e){console.warn('poll:',e);}
+    }catch(e){window.__pd.err=String(e);console.warn('poll:',e);}
     finally{_polling=false;}
   }
   function _startPoll(){
@@ -15608,7 +15611,7 @@ function _updateChipStates(){
     if(_es) return;
     try{
       _es=new EventSource(_API+'/api/stream');
-      _es.addEventListener('order', ()=>{ clearTimeout(_liveDebounce); _liveDebounce=setTimeout(()=>{ try{_pollOrders();}catch(e){} }, 400); });
+      _es.addEventListener('order', ()=>{ window.__sse=(window.__sse||0)+1; clearTimeout(_liveDebounce); _liveDebounce=setTimeout(()=>{ try{_pollOrders();}catch(e){} }, 400); });
     }catch(e){}
   }
   function _stopStream(){ if(_es){ try{_es.close();}catch(e){} _es=null; } }
