@@ -15613,6 +15613,17 @@ function _updateChipStates(){
   }
   function _stopStream(){ if(_es){ try{_es.close();}catch(e){} _es=null; } }
 
+  /* Watchdog: guarantee live poll + stream are running whenever a user is logged in,
+     regardless of which session-restore / render path showed the app. Self-heals every 5s. */
+  setInterval(function(){
+    try{
+      if(currentUser && localStorage.getItem(_JWT_KEY)){
+        if(!_pollTimer) _startPoll();
+        if(!_es) _startStream();
+      }
+    }catch(e){}
+  }, 5000);
+
   /* ════ ORDER SYNC ════ */
   let _syncTimer=null;
   let _syncing=false;   /* semaphore — prevents concurrent POST duplicates */
