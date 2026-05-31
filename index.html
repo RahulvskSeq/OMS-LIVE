@@ -15950,6 +15950,9 @@ function _updateChipStates(){
     const prevIds = type ? new Set((
       type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:transporters
     ).map(r=>r.id)) : new Set();
+    /* Snapshot existing (already-synced) records so we can detect which the import edits → PUT them */
+    const beforeJSON = {};
+    if(type){ (type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:transporters).forEach(r=>{ if(r._id) beforeJSON[r.id]=JSON.stringify(r); }); }
 
     /* Run the original import (modifies arrays + localStorage) */
     if(typeof _origApplyImport==='function') _origApplyImport.call(this);
@@ -15976,18 +15979,24 @@ function _updateChipStates(){
     if(!ep || !mkPl) return;
 
     const arr     = type==='customers'?customers:type==='vendors'?vendors:type==='products'?products:transporters;
-    /* New records: added this session (id wasn't in array before) and have no _id yet */
+    /* New records: weren't in the array before and have no _id yet → POST */
     const newRecs = arr.filter(r => !prevIds.has(r.id) && !r._id);
-    if(!newRecs.length) return;
+    /* Existing records the import changed (Update/Replace modes) → PUT so edits persist server-side */
+    const updRecs = (mode==='add') ? [] : arr.filter(r => r._id && beforeJSON[r.id]!==undefined && beforeJSON[r.id]!==JSON.stringify(r));
+    if(!newRecs.length && !updRecs.length) return;
 
-    if(typeof showToast==='function') showToast('⏳ Syncing '+newRecs.length+' records to server…','info');
+    if(typeof showToast==='function') showToast('⏳ Syncing '+(newRecs.length+updRecs.length)+' records to server…','info');
     let ok=0, fail=0;
     for(const rec of newRecs){
       try{
         const res = await _req('POST', ep, mkPl(rec));
         if(res && res.data && res.data._id) rec._id = res.data._id;
         ok++;
-      }catch(e){ fail++; console.warn('bulk-import sync err:',e); }
+      }catch(e){ fail++; console.warn('bulk-import POST err:',e); }
+    }
+    for(const rec of updRecs){
+      try{ await _req('PUT', ep+'/'+rec._id, mkPl(rec)); ok++; }
+      catch(e){ fail++; console.warn('bulk-import PUT err:',e); }
     }
     if(typeof showToast==='function'){
       const msg = fail ? '⚠️ Synced '+ok+', failed '+fail : '✅ Synced '+ok+' records to server';
