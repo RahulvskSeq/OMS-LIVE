@@ -15506,6 +15506,7 @@ function _updateChipStates(){
       document.getElementById('app').style.display='block';
       if(typeof audit==='function')
         audit('LOGIN',`Logged in as ${usr.name||usr.username} (${typeof getRoleLabel==='function'?getRoleLabel(usr.role):usr.role})`,'user',usr.id);
+      _startPoll();
       _renderApp();
     }catch(e){
       if(lerr){
@@ -15518,6 +15519,7 @@ function _updateChipStates(){
 
   /* ════ OVERRIDE: doLogout ════ */
   window.doLogout=function(){
+    _stopPoll();
     _authReady=false;
     localStorage.removeItem(_JWT_KEY);
     localStorage.removeItem(_USR_KEY);
@@ -15528,6 +15530,62 @@ function _updateChipStates(){
     const lu=document.getElementById('lusr'),lp=document.getElementById('lpwd');
     if(lu) lu.value=''; if(lp) lp.value='';
   };
+
+  /* ════ LIVE POLL — auto-refresh orders every 30s ════ */
+  let _pollTimer=null;
+  let _polling=false;
+  async function _pollOrders(){
+    if(_polling||_syncing) return;
+    // Don't poll if any form input is focused (user is typing) or any modal is open
+    const focused=document.activeElement;
+    if(focused&&['INPUT','TEXTAREA','SELECT'].includes(focused.tagName)) return;
+    if(document.querySelector('.modal[style*="flex"],.modal[style*="block"]')) return;
+    if(document.getElementById('orderModal')?.style.display==='flex') return;
+    _polling=true;
+    try{
+      let all=[],page=1,pages=1;
+      while(page<=pages&&page<=50){
+        const r=await _req('GET',`/api/orders?page=${page}&limit=200`);
+        all=all.concat(r.data||[]); pages=r.pages||1; page++;
+      }
+      // Deduplicate (same logic as _loadAll)
+      const _SORD2=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased','Billed','Cancelled'];
+      const _sp2=s=>{const i=_SORD2.indexOf(s);return i>=0?i:-1;};
+      const _sk=new Map(); const _dd=[];
+      for(const o of all){
+        const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
+        if(!_sk.has(key)){_sk.set(key,{o,sp:_sp2(o.status),sq:o.seqId||0});_dd.push(o);}
+        else{const p=_sk.get(key);const cs=_sp2(o.status);const cq=o.seqId||0;if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_dd.indexOf(p.o);if(pi>=0)_dd[pi]=o;_sk.set(key,{o,sp:cs,sq:cq});}}
+      }
+      const fresh=_dd.map(_toLocal);
+      // Check if anything changed
+      const oldStr=JSON.stringify(orders.map(o=>o._id+'|'+o.status+':'+o.id).sort());
+      const newStr=JSON.stringify(fresh.map(o=>o._id+'|'+o.status+':'+o.id).sort());
+      if(oldStr!==newStr){
+        // Merge: keep local unsaved changes, update everything else
+        const localDirty=new Set(Object.keys(_snap).filter(id=>_snap[id]!==JSON.stringify(orders.find(o=>String(o.id)===String(id)))));
+        orders=fresh.map(f=>{
+          if(localDirty.has(String(f.id))){const local=orders.find(o=>String(o.id)===String(f.id));return local||f;}
+          return f;
+        });
+        // Show subtle update indicator
+        const dot=document.createElement('div');
+        dot.style.cssText='position:fixed;top:10px;right:10px;background:#10b981;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;z-index:99999;opacity:1;transition:opacity 1s';
+        dot.textContent='🔄 Updated';
+        document.body.appendChild(dot);
+        setTimeout(()=>{dot.style.opacity='0';setTimeout(()=>dot.remove(),1000);},2000);
+        // Re-render current page
+        if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
+        if(typeof buildSidebar==='function') buildSidebar();
+      }
+    }catch(e){console.warn('poll:',e);}
+    finally{_polling=false;}
+  }
+  function _startPoll(){
+    if(_pollTimer) clearInterval(_pollTimer);
+    _pollTimer=setInterval(_pollOrders,30000); // every 30 seconds
+  }
+  function _stopPoll(){if(_pollTimer){clearInterval(_pollTimer);_pollTimer=null;}}
 
   /* ════ ORDER SYNC ════ */
   let _syncTimer=null;
