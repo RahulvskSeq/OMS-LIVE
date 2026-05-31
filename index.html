@@ -15088,6 +15088,8 @@ function _updateChipStates(){
       if(typeof _origInitApp === 'function') _origInitApp.call(window);
     }
 
+    /* Ensure live auto-refresh runs for every entry path (login, reload, session restore) */
+    if(typeof _startPoll==='function' && currentUser) _startPoll();
   }
 
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
@@ -15577,6 +15579,7 @@ function _updateChipStates(){
         const localDirty=new Set(Object.keys(_snap).filter(id=>_snap[id]!==JSON.stringify(orders.find(o=>String(o.id)===String(id)))));
         orders=fresh.map(f=>{
           if(localDirty.has(String(f.id))){const local=orders.find(o=>String(o.id)===String(f.id));return local||f;}
+          _snap[f.id]=JSON.stringify(f);
           return f;
         });
         // Show subtle update indicator
