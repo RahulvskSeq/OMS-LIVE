@@ -15131,6 +15131,7 @@ function _updateChipStates(){
       /* Fields that must survive refresh — kept in sync with _toAPI */
       biller:o.biller||'', salesExec:o.salesExec||'',
       billerHistory:o.billerHistory||[], salesHistory:o.salesHistory||[],
+      updatedAt:o.updatedAt||'',
       cancelReason:o.cancelReason||'', cancelledBy:o.cancelledBy||'', cancelledAt:o.cancelledAt||'',
       grnNo:o.grnNo||'', grnDate:o.grnDate||'', grnBy:o.grnBy||'', grnRemarks:o.grnRemarks||'',
       purchVoucherNo:o.purchVoucherNo||'', physGrnNo:o.physGrnNo||'', physGrnDate:o.physGrnDate||'',
@@ -15572,8 +15573,8 @@ function _updateChipStates(){
       }
       const fresh=_dd.map(_toLocal);
       // Check if anything changed
-      const oldStr=JSON.stringify(orders.map(o=>o._id+'|'+o.status+':'+o.id).sort());
-      const newStr=JSON.stringify(fresh.map(o=>o._id+'|'+o.status+':'+o.id).sort());
+      const oldStr=JSON.stringify(orders.map(o=>o._id+'|'+(o.updatedAt||'')+'|'+o.status+':'+o.id).sort());
+      const newStr=JSON.stringify(fresh.map(o=>o._id+'|'+(o.updatedAt||'')+'|'+o.status+':'+o.id).sort());
       if(oldStr!==newStr){
         // Merge: keep local unsaved changes, update everything else
         const localDirty=new Set(Object.keys(_snap).filter(id=>_snap[id]!==JSON.stringify(orders.find(o=>String(o.id)===String(id)))));
