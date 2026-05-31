@@ -15613,7 +15613,6 @@ function _updateChipStates(){
   }
   function _stopStream(){ if(_es){ try{_es.close();}catch(e){} _es=null; } }
 
-  try{ window.__liveDebug = function(){ try{ return {pollTimer:!!_pollTimer, es:!!_es, esState:_es?_es.readyState:-1}; }catch(e){ return {err:String(e)}; } }; }catch(e){}
 
   /* Watchdog: guarantee live poll + stream are running whenever a user is logged in,
      regardless of which session-restore / render path showed the app. Self-heals every 5s. */
