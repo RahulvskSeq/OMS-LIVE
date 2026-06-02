@@ -5650,7 +5650,7 @@ function dealerPopupWhatsApp(){
   const lines=ords.map(o=>{
     const etaStr=o.eta?fmt(o.eta):'No ETA';
     const d=new Date(o.orderDate),dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0');
-    return`• DON-${o.groupDonId||o.id} ${dd}/${mm}${o.vendorPoNum?' | SPO: '+_spo(o.vendorPoNum):''}  |  ${o.product} × ${o.qty}  |  ETA: ${etaStr}  |  ${o.status}`;
+    return`• DON-${o.groupDonId||o.id} ${dd}/${mm}${o.vendorPoNum?' | SPO: '+_spo(o.vendorPoNum):''}  |  ${o.orderedCode||o.product} × ${o.qty}  |  ETA: ${etaStr}  |  ${o.status}`;
   }).join('\n');
   const text=`Hi ${custName},\n\nHere's an update on your pending orders:\n\n${lines}\n\nRegards,\n${senderName}`;
 
