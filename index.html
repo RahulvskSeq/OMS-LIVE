@@ -8294,8 +8294,9 @@ function openOrderModal(id=null){
     document.getElementById('omDate').value=o.orderDate;
     document.getElementById('omPo').value=o.poNum||'';
     document.getElementById('omRemark').value=''; // new comment goes here; existing thread shown in 💬 modal
-    if(!_isBillerRole&&billerEl&&o.biller) billerEl.value=o.biller;
-    if(!_isSalesRole&&salesEl&&o.salesExec) salesEl.value=o.salesExec;
+    const _cmEdit=customers.find(c=>c.name===o.customer);
+    if(!_isBillerRole&&billerEl) billerEl.value=o.biller||(_cmEdit&&_cmEdit.biller)||'';
+    if(!_isSalesRole&&salesEl) salesEl.value=o.salesExec||(_cmEdit&&_cmEdit.salesExec)||'';
     addProductLine(false, o.product, o.qty, o.eta);
   } else {
     // New order — start with one blank line
