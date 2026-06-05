@@ -12136,7 +12136,10 @@ function copyWAText(elId, vendorName, btn){
   const batchVpo=existingVpo||generatePoNum();
   checkedOrders.forEach(o=>{if(!o.vendorPoNum)o.vendorPoNum=batchVpo;});
   persistOrders();
-  const lines=checkedOrders.map(o=>`• ${o.product} — Qty: ${o.qty}`);
+  // Group by SKU (supplier product code) and total the quantity so the same SKU across orders is one line
+  const _skuAgg={};
+  checkedOrders.forEach(o=>{ const k=o.product||o.orderedCode||'(no code)'; _skuAgg[k]=(_skuAgg[k]||0)+(Number(o.qty)||0); });
+  const lines=Object.entries(_skuAgg).map(([sku,qty])=>`• ${sku} — Qty: ${qty}`);
   const senderName=currentUser.name||currentUser.username||'Team';
   const text=`Hi ${vendorName},\nPlease process the following order:\n${batchVpo}\n\n${lines.join('\n')}\n\nRegards,\n${senderName}`;
   // ── RECORD WA SENT TIMESTAMP on every checked order ──
