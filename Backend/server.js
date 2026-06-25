@@ -163,7 +163,7 @@ async function resetAdminIfRequested() {
 }
 
 // ── Start Server ─────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 resetAdminIfRequested();
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
