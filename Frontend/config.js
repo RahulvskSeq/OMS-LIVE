@@ -15,5 +15,5 @@
  *     API_URL: "https://web-production-3ead93.up.railway.app"
  * ────────────────────────────────────────────────────────────── */
 window.__APP_CONFIG__ = {
-  API_URL: ""
+  API_URL: "http://localhost:5003"
 };

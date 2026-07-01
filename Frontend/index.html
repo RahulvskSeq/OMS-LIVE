@@ -1223,6 +1223,15 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
           <button id="vpo-tab-raised" class="be-tab" onclick="vpoTab('raised')">✅ PO Raised <span id="vpoTabRaisedBadge" style="background:#16a34a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
         </div>
       </div>
+      <!-- Approved tab search bar -->
+      <div id="vpoApprovedSearch" style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🔍</span>
+        <input id="vpoSearch" type="text" placeholder="Search supplier, customer, product, DON…"
+          style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent"
+          oninput="renderVendorPO()">
+        <button onclick="document.getElementById('vpoSearch').value='';renderVendorPO()"
+          style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px" title="Clear">✕</button>
+      </div>
       <div id="vendorPOList"></div>
       <!-- PO Raised search bar + list -->
       <div id="poRaisedSection" style="display:none">
@@ -1280,6 +1289,8 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
             style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:#1a73e8;color:#fff;transition:all .15s">📦 Pending DONs</button>
           <button id="pendingTab-vpo" onclick="_switchPendingTab('vpo')"
             style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .15s">📄 Pending SPOs</button>
+          <button id="pendingTab-supplier" onclick="_switchPendingTab('supplier')"
+            style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .15s">🏭 By Supplier</button>
         </div>
         <div style="flex:1;display:flex;align-items:center;gap:6px;min-width:180px;background:#f8fafc;border-radius:8px;padding:6px 12px;border:1px solid #e2e8f0">
           <span style="color:#94a3b8">🔍</span>
@@ -1403,6 +1414,22 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
     <div id="grnOrderSummary" style="padding:16px 22px 0"></div>
     <!-- GRN Form -->
     <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:14px">
+      <!-- Received / Damaged qty reconcile (single-order mode) -->
+      <div id="grnQtyBlock">
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Received Qty <span style="color:#dc2626">*</span></label>
+            <input id="grnReceivedQty" type="number" min="0" oninput="_grnQtyReconcile()"
+              style="width:100%;padding:10px 13px;border:2px solid #16a34a;border-radius:9px;font-size:14px;font-weight:700;color:#15803d;background:#f0fdf4;outline:none;box-sizing:border-box">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Damaged Qty</label>
+            <input id="grnDamagedQty" type="number" min="0" value="0" oninput="_grnQtyReconcile()"
+              style="width:100%;padding:10px 13px;border:2px solid #f59e0b;border-radius:9px;font-size:14px;font-weight:700;color:#b45309;background:#fffbeb;outline:none;box-sizing:border-box">
+          </div>
+        </div>
+        <div id="grnQtyHint" style="margin-top:8px;font-size:12px;font-weight:700"></div>
+      </div>
       <div>
         <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">GRN Number <span style="color:#dc2626">*</span> <span style="color:#dc2626;font-size:10px;font-weight:600;text-transform:none">(mandatory)</span></label>
         <input id="grnNumberInput" type="text" placeholder="Enter GRN number from your document"
@@ -2250,6 +2277,18 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
       <div id="spSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-sm" onclick="supplierPopupWhatsApp()" style="background:#25D366;color:#fff;border:none;display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.118 1.532 5.844L.054 23.25a.75.75 0 0 0 .916.917l5.453-1.476A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.891 0-3.667-.523-5.18-1.433l-.37-.22-3.833 1.038 1.042-3.767-.24-.383A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        WhatsApp
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="supplierPopupShare()" style="display:flex;align-items:center;gap:5px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
+      <button id="spScreenshotBtn" onclick="supplierPopupScreenshot()" style="display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;background:#6366f1;color:#fff;border:none;transition:all .15s" title="Copy screenshot to clipboard">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Screenshot
+      </button>
       <button class="mclose" onclick="closeModal('supplierPopup')">✕</button>
     </div>
   </div>
@@ -2398,7 +2437,20 @@ let nextProductId = (()=>{try{return parseInt(localStorage.getItem('oms_nextProd
 // PO number counter (persisted)
 let nextPoNum=(()=>{try{return parseInt(localStorage.getItem('oms_nextPoNum')||'1');}catch(e){return 1;}})();
 function generatePoNum(){
-  const n=nextPoNum++;
+  // SPO numbers must ALWAYS increase and never reset. The old per-browser
+  // localStorage counter reset to 1 whenever storage was cleared or a different
+  // device/user was used. Derive the next number from the highest SPO across all
+  // orders (shared via the DB) so it stays globally sequential; never go below the
+  // local counter.
+  let maxN=0;
+  try{
+    (orders||[]).forEach(o=>{
+      const m=(o.vendorPoNum||'').match(/(?:SPO|VPO)-\s*(\d+)/i);
+      if(m){ const v=parseInt(m[1],10); if(v>maxN) maxN=v; }
+    });
+  }catch(e){}
+  const n=Math.max(maxN+1, nextPoNum||1);
+  nextPoNum=n+1;
   try{localStorage.setItem('oms_nextPoNum',String(nextPoNum));}catch(e){}
   const d=new Date();
   const dd=String(d.getDate()).padStart(2,'0');
@@ -3029,6 +3081,7 @@ function buildSidebar(){
   const pendingItems=[
     {id:'pending-don', icon:'📦', label:'Pending DONs', role:'viewPendingDon'},
     {id:'pending-vpo', icon:'📄', label:'Pending SPOs', role:'viewPendingSpo'},
+    {id:'pending-supplier', icon:'🏭', label:'By Supplier', role:'viewPendingDon'},
   ];
   const phase2Items=[
     {id:'ship-intransit',   icon:'🚚', label:'In Transit',     status:'In Transit',    role:'viewShipments'},
@@ -3071,7 +3124,7 @@ function buildSidebar(){
     if(i.status){const n=_vo.filter(o=>o.status===i.status).length;bdg=badge('#8b5cf6',n);}
     if(i.id==='deliv-grn')        bdg=badge('#d97706',_vo.filter(o=>o.status==='GRN').length);
     if(i.id==='deliv-purchased')  bdg=badge('#06b6d4',_vo.filter(o=>o.status==='Purchased').length);
-    if(i.id==='deliv-billed')     bdg=badge('#16a34a',_vo.filter(o=>o.status==='Billed').length);
+    if(i.id==='deliv-billed')     bdg=badge('#16a34a',_vo.filter(o=>_isBilledRecent(o)).length);
     if(i.id==='deliv-cancelled')  bdg=badge('#ef4444',_vo.filter(o=>o.status==='Cancelled').length);
     if(i.id==='pending-don'){
       // Count distinct pending DONs visible to this user
@@ -3085,6 +3138,10 @@ function buildSidebar(){
       const vpoMap={};allNcV.forEach(o=>{if(!vpoMap[o.vendorPoNum])vpoMap[o.vendorPoNum]=[];vpoMap[o.vendorPoNum].push(o);});
       const n=Object.values(vpoMap).filter(arr=>arr.some(o=>o.status!=='Billed')).length;
       bdg=badge('#0d9488',n);
+    }
+    if(i.id==='pending-supplier'){
+      const sup=new Set(_vo.filter(o=>o.status!=='Cancelled'&&o.status!=='Billed').map(o=>o.vendor||'(No Supplier)'));
+      bdg=badge('#6366f1',sup.size);
     }
     const isActive=(i.id===currentPage)||
       (i.status&&shipPageIds[i.status]===currentPage&&['ship-intransit','ship-transporter','ship-warehouse'].includes(i.id))||
@@ -3300,15 +3357,15 @@ function navTo(page){
   // 'poraised' shortcut → now goes to the dedicated Mark In Transit page
   if(page==='poraised') page='intransit';
 
-  // Pending sub-nav: pending-don / pending-vpo
-  if(page==='pending-don'||page==='pending-vpo'){
-    _pendingTab=page==='pending-don'?'don':'vpo';
+  // Pending sub-nav: pending-don / pending-vpo / pending-supplier
+  if(page==='pending-don'||page==='pending-vpo'||page==='pending-supplier'){
+    _pendingTab=page==='pending-don'?'don':(page==='pending-supplier'?'supplier':'vpo');
     currentPage=page;
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
     const ni=document.getElementById('nav-'+page);if(ni)ni.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     const pg=document.getElementById('pg-pending');if(pg)pg.classList.add('active');
-    document.getElementById('pageTitle').textContent=page==='pending-don'?'📦 Pending DONs':'📄 Pending SPOs';
+    document.getElementById('pageTitle').textContent=page==='pending-don'?'📦 Pending DONs':(page==='pending-supplier'?'🏭 Pending by Supplier':'📄 Pending SPOs');
     document.getElementById('topbarActions').innerHTML='';
     _updateTopbarCustomizeBtn();
     renderPendingPage();
@@ -4218,6 +4275,12 @@ function _syncPendingTabBtns(){
     vpoBtn.style.color=_pendingTab==='vpo'?'#fff':'#64748b';
     vpoBtn.style.border=_pendingTab==='vpo'?'none':'1.5px solid #e2e8f0';
   }
+  const supBtn=document.getElementById('pendingTab-supplier');
+  if(supBtn){
+    supBtn.style.background=_pendingTab==='supplier'?'#6366f1':'#f8fafc';
+    supBtn.style.color=_pendingTab==='supplier'?'#fff':'#64748b';
+    supBtn.style.border=_pendingTab==='supplier'?'none':'1.5px solid #e2e8f0';
+  }
   // Force DON tab if biller/salesman somehow landed on SPO tab
   if(noSpo&&_pendingTab==='vpo'){_pendingTab='don';}
 }
@@ -4234,7 +4297,7 @@ function renderPendingPage(){
   (function(){
     const stageFilterEl=document.getElementById('pendingStageFilters');
     if(!stageFilterEl)return;
-    const isDon=_pendingTab==='don';
+    const isDon=_pendingTab==='don'||_pendingTab==='supplier';
     const rel=getVisibleOrders().filter(o=>o.status!=='Cancelled'&&o.status!=='Billed'&&(isDon||o.vendorPoNum));
     const sc={};rel.forEach(o=>{sc[o.status]=(sc[o.status]||0)+1;});
     const stageOrder=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased'];
@@ -4250,6 +4313,43 @@ function renderPendingPage(){
 
   const stageColor=s=>STAGE_COLOR[s]||'#64748b';
 
+  if(_pendingTab==='supplier'){
+    // ── By-Supplier tab: each supplier and how many orders are still pending ──
+    let pend=getVisibleOrders().filter(o=>o.status!=='Cancelled'&&o.status!=='Billed');
+    if(_pendingStageFilter) pend=pend.filter(o=>o.status===_pendingStageFilter);
+    const smap={};
+    pend.forEach(o=>{
+      const v=o.vendor||'(No Supplier)';
+      if(!smap[v]) smap[v]={vendor:v,count:0,qty:0,dons:new Set()};
+      smap[v].count++; smap[v].qty+=Number(o.qty)||0; smap[v].dons.add(String(o.groupDonId||o.id));
+    });
+    let srows=Object.values(smap);
+    if(q) srows=srows.filter(r=>r.vendor.toLowerCase().includes(q));
+    srows.sort((a,b)=>b.count-a.count||a.vendor.localeCompare(b.vendor));
+    if(subtitle) subtitle.textContent=`${srows.length} supplier${srows.length!==1?'s':''} · ${pend.length} pending order${pend.length!==1?'s':''}`;
+    if(!srows.length){ el.innerHTML='<div class="card"><div style="text-align:center;padding:48px;color:#94a3b8;font-size:15px">No pending orders by supplier</div></div>'; return; }
+    el.innerHTML=`<div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+          <th style="padding:12px 16px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700">Supplier</th>
+          <th style="padding:12px 14px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700">Pending Orders</th>
+          <th style="padding:12px 14px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700">DONs</th>
+          <th style="padding:12px 14px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700">Total Qty</th>
+          <th style="padding:12px 14px"></th>
+        </tr></thead>
+        <tbody>
+        ${srows.map(r=>`<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onclick="openSupplierPopup('${r.vendor.replace(/'/g,"\\'")}')" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background=''">
+          <td style="padding:13px 16px;font-size:13px;font-weight:700;color:#0f172a">🏭 ${r.vendor}</td>
+          <td style="padding:13px 14px;text-align:center"><span style="display:inline-block;min-width:34px;padding:3px 12px;border-radius:20px;font-size:13px;font-weight:800;background:#e0e7ff;color:#6366f1">${r.count}</span></td>
+          <td style="padding:13px 14px;text-align:center;font-size:13px;font-weight:700;color:#64748b">${r.dons.size}</td>
+          <td style="padding:13px 14px;text-align:center;font-size:13px;font-weight:800;color:#0891b2">${r.qty}</td>
+          <td style="padding:13px 16px;text-align:right;color:#cbd5e1;font-weight:900;font-size:16px">›</td>
+        </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+    return;
+  }
   if(_pendingTab==='don'){
     // ── DON tab ──
     const allOrders=getVisibleOrders().filter(o=>o.status!=='Cancelled');
@@ -4848,6 +4948,7 @@ function openSupplierPopup(vendorName){
         <td style="padding:11px 14px;font-size:12px;font-weight:700;color:#1e293b">${o.customer||'—'}</td>
         <td style="padding:11px 14px">
           <div style="font-weight:700;font-size:13px">${o.orderedCode||o.product}</div>
+          ${(o.orderedCode&&o.product&&o.orderedCode!==o.product)?`<div style="font-size:10px;color:#7c3aed;font-weight:700;font-family:monospace">↳ PO: ${o.product}</div>`:''}
           ${o.poNum?`<div style="font-size:11px;color:#1a73e8;font-weight:700">${o.poNum}</div>`:''}
         </td>
         <td style="padding:11px 10px;text-align:center;font-weight:700">${o.qty}</td>
@@ -5856,6 +5957,103 @@ function dealerPopupScreenshot(){
   });
 }
 
+// ═══ Supplier popup — Screenshot / Share / WhatsApp. Both parent + child codes
+//     show on-screen and in the screenshot. ═══
+function _spVendorName(){
+  return (document.getElementById('spTitle')?.textContent||'').replace('🏭 ','').replace(' — Pending Orders','').trim();
+}
+function supplierPopupScreenshot(){
+  const modal=document.querySelector('#supplierPopup .modal');
+  if(!modal){showToast('Nothing to capture','warning');return;}
+  if(typeof html2canvas==='undefined'){showToast('Screenshot library not loaded, try again','warning');return;}
+  const btn=document.getElementById('spScreenshotBtn');
+  if(btn){btn.style.opacity='.7';btn.style.pointerEvents='none';}
+  const prevMaxH=modal.style.maxHeight, prevOverflow=modal.style.overflowY;
+  modal.style.maxHeight='none'; modal.style.overflowY='visible';
+  requestAnimationFrame(()=>{
+    html2canvas(modal,{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollY:0,
+      windowWidth:document.documentElement.offsetWidth,windowHeight:modal.scrollHeight+80
+    }).then(canvas=>{
+      modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow;
+      if(btn){btn.style.opacity='1';btn.style.pointerEvents='';}
+      canvas.toBlob(blob=>{
+        if(!blob) return;
+        if(navigator.clipboard&&window.ClipboardItem){
+          navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
+            .then(()=>showToast('📸 Screenshot copied! Press Ctrl+V / Cmd+V to paste anywhere','success'))
+            .catch(()=>downloadScreenshot(canvas,_spVendorName()||'SupplierOrders'));
+        } else { downloadScreenshot(canvas,_spVendorName()||'SupplierOrders'); }
+      },'image/png');
+    }).catch(()=>{
+      modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow;
+      if(btn){btn.style.opacity='1';btn.style.pointerEvents='';}
+      showToast('Screenshot failed','warning');
+    });
+  });
+}
+function supplierPopupShare(){
+  const modal=document.querySelector('#supplierPopup .modal');
+  if(!modal){showToast('Nothing to capture','warning');return;}
+  if(typeof html2canvas==='undefined'){showToast('Screenshot library loading, try again','warning');return;}
+  showToast('📸 Capturing screenshot…','success');
+  const prevMaxH=modal.style.maxHeight, prevOverflow=modal.style.overflowY;
+  modal.style.maxHeight='none'; modal.style.overflowY='visible';
+  requestAnimationFrame(()=>{
+    html2canvas(modal,{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollY:0,
+      windowWidth:document.documentElement.offsetWidth,windowHeight:modal.scrollHeight+80
+    }).then(canvas=>{
+      modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow;
+      canvas.toBlob(blob=>{
+        if(!blob)return;
+        const name=_spVendorName()||'SupplierOrders';
+        const file=new File([blob],name.replace(/\s+/g,'_')+'_orders.jpg',{type:'image/jpeg'});
+        if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+          navigator.share({files:[file],title:name+' Pending Orders'}).catch(()=>downloadScreenshot(canvas,name));
+        } else { downloadScreenshot(canvas,name); }
+      },'image/jpeg',0.92);
+    }).catch(()=>{
+      modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow;
+      showToast('Screenshot failed','warning');
+    });
+  });
+}
+function supplierPopupWhatsApp(){
+  const vendorName=_spVendorName();
+  const vendRec=vendors.find(v=>v.name===vendorName);
+  const waNum=vendRec?.whatsapp?.replace(/\D/g,'')||'';
+  // Build the message using PARENT (supplier PO) codes — this goes to the supplier.
+  const pendingStages=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased'];
+  const ords=getVisibleOrders().filter(o=>(o.vendor||'(No Supplier)')===vendorName&&pendingStages.includes(o.status))
+    .sort((a,b)=>new Date(a.eta||0)-new Date(b.eta||0));
+  const senderName=currentUser.name||currentUser.username||'Team';
+  const lines=ords.map(o=>{
+    const etaStr=o.eta?fmt(o.eta):'No ETA';
+    const d=new Date(o.orderDate),dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0');
+    return`• DON-${o.groupDonId||o.id} ${dd}/${mm}${o.vendorPoNum?' | SPO: '+_spo(o.vendorPoNum):''}  |  ${o.product||o.orderedCode} × ${o.qty}  |  ETA: ${etaStr}  |  ${o.status}`;
+  }).join('\n');
+  const text=`Hi ${vendorName},\n\nHere's the pending order summary:\n\n${lines}\n\nRegards,\n${senderName}`;
+  const modal=document.querySelector('#supplierPopup .modal');
+  const doOpenWA=()=>{
+    if(waNum){ openWhatsAppDesktop(waNum,text); showToast('💬 Screenshot copied & WhatsApp opened for '+vendorName,'success'); }
+    else { navigator.clipboard.writeText(text).catch(()=>{}); showToast('📸 Screenshot copied — no WhatsApp number saved for this supplier','info'); }
+  };
+  if(modal&&typeof html2canvas!=='undefined'){
+    const prevMaxH=modal.style.maxHeight, prevOverflow=modal.style.overflowY;
+    modal.style.maxHeight='none'; modal.style.overflowY='visible';
+    requestAnimationFrame(()=>{
+      html2canvas(modal,{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollY:0,
+        windowWidth:document.documentElement.offsetWidth,windowHeight:modal.scrollHeight+80
+      }).then(canvas=>{
+        modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow;
+        canvas.toBlob(blob=>{
+          if(blob&&navigator.clipboard&&window.ClipboardItem){
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(doOpenWA).catch(doOpenWA);
+          } else { doOpenWA(); }
+        },'image/png');
+      }).catch(()=>{ modal.style.maxHeight=prevMaxH; modal.style.overflowY=prevOverflow; doOpenWA(); });
+    });
+  } else { doOpenWA(); }
+}
 function renderDashOrders(){
   const q=(document.getElementById('dashSrch')?.value||'').toLowerCase();
   const _stageIdx=s=>{if(s==='Cancelled')return 999;const i=STATUSES.indexOf(s);return i>=0?i:998;};
@@ -8355,6 +8553,20 @@ function openOrderModal(id=null){
     if(!_isBillerRole&&billerEl) billerEl.value=o.biller||(_cmEdit&&_cmEdit.biller)||'';
     if(!_isSalesRole&&salesEl) salesEl.value=o.salesExec||(_cmEdit&&_cmEdit.salesExec)||'';
     addProductLine(false, o.product, o.qty, o.eta);
+    // Vendor is derived from the product. Once PO is raised the vendor must not
+    // change — so lock the product field (and hide its remove button) so it stays put.
+    if(STATUSES.indexOf(o.status) >= STATUSES.indexOf('PO Raised')){
+      const _pl=document.querySelector('#omProductLines .om-pline');
+      const _pi=_pl&&_pl.querySelector('.omLineProd');
+      if(_pi){
+        _pi.readOnly=true;
+        _pi.style.background='#f8fafc'; _pi.style.color='#94a3b8'; _pi.style.cursor='not-allowed';
+        _pi.title='Vendor is locked once PO is raised — product cannot be changed';
+        _pi.setAttribute('oninput','');   // neutralise the autocomplete dropdown
+      }
+      const _rm=_pl&&_pl.querySelector('button[onclick*="removeProdLine"]');
+      if(_rm) _rm.style.display='none';
+    }
   } else {
     // New order — start with one blank line
     addProductLine(false);
@@ -11063,6 +11275,7 @@ function vpoTab(tab){
   if(tr) tr.className='be-tab'+(tab==='raised'?' be-tab-active':'');
   if(la) la.style.display=tab==='approved'?'':'none';
   if(ls) ls.style.display=tab==='raised'?'':'none';
+  const aSrch=document.getElementById('vpoApprovedSearch'); if(aSrch) aSrch.style.display=tab==='approved'?'':'none';
   if(tab==='raised'){
     const si=document.getElementById('porSearch');if(si) si.value='';
     renderPORaised();
@@ -11408,6 +11621,16 @@ function _delivFilterStatus(s){
   renderDeliveries();
 }
 
+// A billed order stays in the Billed view for 7 days after its billed date, then
+// ages out. The order data is KEPT (status stays 'Billed') — it's only hidden from
+// the Billed list + badge. Billed orders with no billedDate remain visible.
+function _isBilledRecent(o){
+  if(!o||o.status!=='Billed') return false;
+  if(!o.billedDate) return true;
+  const t=new Date(o.billedDate).getTime();
+  if(isNaN(t)) return true;
+  return (Date.now()-t) <= 7*864e5; // 7 days in ms
+}
 function renderDeliveries(){
   const container=document.getElementById('delivList');
   if(!container)return;
@@ -11423,6 +11646,10 @@ function renderDeliveries(){
   );
   const donHasBilled=new Set(
     _visOrds.filter(o=>o.status==='Billed').map(_dk)
+  );
+  // Billed within the last 7 days — older fully-billed DONs age out of the Billed tab.
+  const donBilledRecent=new Set(
+    _visOrds.filter(o=>_isBilledRecent(o)).map(_dk)
   );
   // Partial DONs: have BOTH Purchased AND Billed orders — must stay in BOTH tabs
   const donPartial=new Set(
@@ -11445,8 +11672,9 @@ function renderDeliveries(){
     // Show DONs with Purchased orders + partial DONs (some already Billed, some still remaining)
     qualifiedDonKeys=new Set([...donHasPurchased,...donPartial]);
   } else if(_delivStatusFilter==='Billed'){
-    // Show ALL DONs with at least one Billed line — includes partially-billed ones
-    qualifiedDonKeys=new Set([...donHasBilled,...donPartial]);
+    // Recently-billed DONs (≤7 days) + partial DONs (still have pending lines).
+    // Fully-billed DONs older than 7 days drop off the Billed list.
+    qualifiedDonKeys=new Set([...donBilledRecent,...donPartial]);
   } else if(_delivStatusFilter==='Cancelled'){
     qualifiedDonKeys=donHasCancelled;
   } else {
@@ -11518,6 +11746,7 @@ function renderDeliveries(){
         <td style="padding:10px 12px" class="cust-cell">
           <strong style="display:block;font-size:13px">${o.customer}</strong>
           <span style="font-size:11px;color:#64748b;display:block">${o.orderedCode||o.product}</span>
+          ${(o.orderedCode&&o.product&&o.orderedCode!==o.product)?`<span style="font-size:10px;color:#7c3aed;display:block;font-family:monospace">↳ PO: ${o.product}</span>`:''}
           ${o.poNum?`<span style="font-size:10px;color:#1a73e8;font-weight:700;display:block">${o.poNum}</span>`:''}
         </td>
         <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:13px">${o.qty}</td>
@@ -11641,11 +11870,38 @@ function renderDeliveries(){
 // ══════════════════════════════════════════
 let _grnOrderId=null; // order being GRN'd (single)
 let _grnBulkLr=null;  // LR string when opening modal in bulk mode
+let _grnOrderedQty=0; // ordered qty of the single order being GRN'd (for reconcile)
+
+// Live hint under Received/Damaged: do received + damaged add up to the ordered qty?
+function _grnQtyReconcile(){
+  const rEl=document.getElementById('grnReceivedQty');
+  const hint=document.getElementById('grnQtyHint');
+  if(!rEl||!hint) return;
+  const recv=Number(rEl.value)||0;
+  const dmg=Number(document.getElementById('grnDamagedQty')?.value)||0;
+  const ordered=Number(_grnOrderedQty)||0;
+  const sum=recv+dmg;
+  if(sum===ordered){
+    hint.style.color='#16a34a';
+    hint.innerHTML=`✓ Reconciled — ${recv} received + ${dmg} damaged = ${ordered} ordered`;
+  } else {
+    const diff=ordered-sum;
+    hint.style.color='#dc2626';
+    hint.innerHTML=`⚠️ ${recv} + ${dmg} = ${sum}, but ordered is ${ordered} (${diff>0?diff+' short':Math.abs(diff)+' over'})`;
+  }
+}
 
 function openGrnModal(id){
   const o=orders.find(x=>x.id===id);
   if(!o||o.status!=='Warehouse'){showToast('Order must be at Warehouse status to raise GRN','warning');return;}
   _grnOrderId=id;
+  _grnBulkLr=null;
+  // Received / Damaged qty — default received = ordered, damaged = 0
+  _grnOrderedQty=Number(o.qty)||0;
+  const _qb=document.getElementById('grnQtyBlock'); if(_qb) _qb.style.display='';
+  const _rq=document.getElementById('grnReceivedQty'); if(_rq) _rq.value=_grnOrderedQty;
+  const _dq=document.getElementById('grnDamagedQty'); if(_dq) _dq.value=0;
+  _grnQtyReconcile();
   // User enters GRN number manually
   document.getElementById('grnNumberInput').value='';
   document.getElementById('grnDateInput').value=new Date().toISOString().slice(0,10); // default today, editable
@@ -11726,6 +11982,15 @@ function confirmGrn(){
   const o=orders.find(x=>x.id===_grnOrderId);
   if(!o){showToast('Order not found','error');return;}
   if(o.status!=='Warehouse'){showToast('Order is no longer at Warehouse status','warning');closeGrnModal();return;}
+  // Received / Damaged reconcile — must add up to ordered qty (allow override on confirm)
+  const _recv=Number(document.getElementById('grnReceivedQty')?.value)||0;
+  const _dmg=Number(document.getElementById('grnDamagedQty')?.value)||0;
+  const _ord=Number(o.qty)||0;
+  if(_recv+_dmg!==_ord){
+    if(!confirm(`Received ${_recv} + Damaged ${_dmg} = ${_recv+_dmg}, but ordered qty is ${_ord}.\n\nThey don't reconcile — save GRN anyway?`)) return;
+  }
+  o.receivedQty=_recv;
+  o.damagedQty=_dmg;
   const prev=o.status;
   o.status='GRN';
   o.grnNo=grnNo;
@@ -11752,6 +12017,9 @@ function bulkRaiseGrn(lr, e){
   // Open GRN modal in bulk mode — user must enter GRN No + Date manually
   _grnBulkLr=lr;
   _grnOrderId=null;
+  // Per-order received/damaged isn't captured in bulk mode — hide that block
+  const _qb=document.getElementById('grnQtyBlock'); if(_qb) _qb.style.display='none';
+  _grnOrderedQty=0;
   document.getElementById('grnNumberInput').value='';
   document.getElementById('grnDateInput').value=new Date().toISOString().slice(0,10);
   document.getElementById('grnRemarks').value='';
@@ -11930,13 +12198,14 @@ function _renderPORaisedInto(listId, searchId, referenceMode=false){
   // Apply search filter across SPO key, supplier, and each order's fields
   if(q){
     sorted=sorted.filter(([vpoNum,data])=>{
-      if(vpoNum.toLowerCase().includes(q)) return true;
-      if(data.vendor.toLowerCase().includes(q)) return true;
+      if((vpoNum||'').toLowerCase().includes(q)) return true;
+      if((data.vendor||'').toLowerCase().includes(q)) return true;   // guard: vendor can be undefined
       return data.orders.some(o=>{
         const d=new Date(o.orderDate),dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0');
-        const don=`don-${o.id} ${dd}/${mm}`;
-        return[o.customer,o.product,o.orderedCode,o.poNum,o.id+'',don]
-          .some(x=>(x||'').toLowerCase().includes(q));
+        const donId=o.groupDonId||o.id;                              // match the DON label actually shown
+        const don=`don-${donId} ${dd}/${mm}`;
+        return[o.customer,o.product,o.orderedCode,o.poNum,o.vendorPoNum,o.vendor,donId+'',o.id+'',don]
+          .some(x=>(x||'').toString().toLowerCase().includes(q));
       });
     });
   }
@@ -12063,8 +12332,16 @@ function renderVendorPO(){
   if(badgeR) badgeR.textContent=raised.length;
   if(_vpoActiveTab==='raised'){renderPORaised();return;}
 
+  // ── Search filter (supplier, customer, product, DON, SPO) — the counts above stay total ──
+  const _q=(document.getElementById('vpoSearch')?.value||'').trim().toLowerCase();
+  const _matches=o=>{
+    if(!_q) return true;
+    const don='don-'+(o.groupDonId||o.id);
+    return [o.vendor,o.customer,o.product,o.orderedCode,o.vendorPoNum,o.poNum,don,String(o.groupDonId||o.id)]
+      .some(x=>(x||'').toString().toLowerCase().includes(_q));
+  };
   const vendorMap={};
-  approved.forEach(o=>{
+  approved.filter(_matches).forEach(o=>{
     if(!vendorMap[o.vendor]) vendorMap[o.vendor]=[];
     vendorMap[o.vendor].push(o);
   });
@@ -12073,7 +12350,7 @@ function renderVendorPO(){
   if(!container)return;
 
   if(!Object.keys(vendorMap).length){
-    container.innerHTML='<div class="card"><div style="text-align:center;padding:48px;color:#94a3b8;font-size:15px">✅ No orders in Approved stage</div></div>';
+    container.innerHTML='<div class="card"><div style="text-align:center;padding:48px;color:#94a3b8;font-size:15px">'+(_q?'🔍 No matching suppliers or orders':'✅ No orders in Approved stage')+'</div></div>';
     return;
   }
 
@@ -12113,9 +12390,6 @@ function renderVendorPO(){
       const donLabel=`DON-${o.groupDonId||o.id} ${odd}/${omm}`;
       return`
       <tr data-oid="${o.id}" style="border-bottom:1px solid #f1f5f9;transition:background .1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <td style="padding:10px 12px;width:36px">
-          <input type="checkbox" class="vpo-chk" data-id="${o.id}" checked style="width:15px;height:15px;cursor:pointer">
-        </td>
         <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">
           <span onclick="filterByDON(${o.id})" title="View in Orders" style="font-size:10px;font-weight:800;color:#1e293b;font-family:monospace;cursor:pointer;border-radius:4px;padding:1px 4px;transition:background .15s" onmouseover="this.style.background='#e0e7ff';this.style.color='#3730a3'" onmouseout="this.style.background='';this.style.color='#1e293b'">${donLabel}</span>
           ${o.vendorPoNum?`<div style="margin-top:3px;font-size:10px;font-weight:800;color:#1e293b;font-family:monospace">${_spo(o.vendorPoNum)}</div>`:''}
@@ -12157,14 +12431,13 @@ function renderVendorPO(){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-outline btn-sm" id="wa-btn-${vname.replace(/[^a-z0-9]/gi,'_')}" onclick="copyWAText('vwa-${vname.replace(/[^a-z0-9]/gi,'_')}','${vname.replace(/'/g,"\\'")}',this)" style="border-color:#25D366;color:#25D366">📱 Send on WhatsApp</button>
-          <button class="btn btn-primary btn-sm" onclick="markVendorPORaised('${vname.replace(/'/g,"\\'")}',this)">✅ Mark PO Raised</button>
+          <button class="btn btn-primary btn-sm" onclick="markVendorPORaised('${vname.replace(/'/g,"\\'")}',this)">✅ Mark PO Raised / Send Message</button>
         </div>
       </div>
       <textarea id="vwa-${vname.replace(/[^a-z0-9]/gi,'_')}" style="display:none">${waFull}</textarea>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc">
-            <th style="padding:8px 12px;width:36px"><input type="checkbox" onchange="toggleVendorChk('${vname.replace(/'/g,"\\'")}',this)" checked style="cursor:pointer"></th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">#</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Customer</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">SKU / Product</th>
@@ -12183,11 +12456,11 @@ function renderVendorPO(){
 function copyWAText(elId, vendorName, btn){
   const el=document.getElementById(elId);
   if(!el)return;
-  // Build from checked rows only
+  // Checkboxes removed — send ALL orders shown in this vendor's card.
   const card=el.closest('.card');
-  const checked=[...card.querySelectorAll('.vpo-chk:checked')];
-  if(!checked.length){showToast('No orders selected','warning');return;}
-  const checkedOrders=checked.map(cb=>orders.find(x=>x.id===parseInt(cb.dataset.id))).filter(Boolean);
+  const rows=[...card.querySelectorAll('tr[data-oid]')];
+  if(!rows.length){showToast('No orders to send','warning');return;}
+  const checkedOrders=rows.map(row=>orders.find(x=>x.id===parseInt(row.dataset.oid))).filter(Boolean);
   // Assign one VPO number to this batch if not already assigned
   const existingVpo=[...new Set(checkedOrders.map(o=>o.vendorPoNum).filter(Boolean))][0];
   const batchVpo=existingVpo||generatePoNum();
@@ -12254,16 +12527,35 @@ function markVendorPORaised(vendorName, btn){
   const card=[...document.querySelectorAll('#vendorPOList .card')].find(c=>{
     const h3=c.querySelector('h3');return h3&&h3.textContent.trim()===vendorName;
   });
-  const checked=card?[...card.querySelectorAll('.vpo-chk:checked')]:[];
-  if(!checked.length){showToast('Select at least one order','warning');return;}
+  // Checkboxes removed — act on ALL orders shown in this vendor's card.
+  const rows=card?[...card.querySelectorAll('tr[data-oid]')]:[];
+  if(!rows.length){showToast('No orders to raise','warning');return;}
   let count=0;
   const batchPoNum=generatePoNum();
-  checked.forEach(cb=>{
-    const id=parseInt(cb.dataset.id);
+  const raisedOrders=[];
+  rows.forEach(row=>{
+    const id=parseInt(row.dataset.oid);
     const o=orders.find(x=>x.id===id);
-    if(o&&o.status==='Approved'){if(!o.vendorPoNum)o.vendorPoNum=batchPoNum;o.status='PO Raised';count++;}
+    if(o&&o.status==='Approved'){if(!o.vendorPoNum)o.vendorPoNum=batchPoNum;o.status='PO Raised';count++;raisedOrders.push(o);}
   });
   persistOrders();
+  // ── Also build the PO message, copy it to clipboard, and open WhatsApp if the vendor has a number ──
+  let _copied=false;
+  if(raisedOrders.length){
+    const spo=raisedOrders[0].vendorPoNum||batchPoNum;
+    const _agg={};
+    raisedOrders.forEach(o=>{ const k=o.product||o.orderedCode||'(no code)'; _agg[k]=(_agg[k]||0)+(Number(o.qty)||0); });
+    const _lines=Object.entries(_agg).map(([sku,qty])=>`• ${sku} — Qty: ${qty}`);
+    const _sender=currentUser.name||currentUser.username||'Team';
+    const _text=`Hi ${vendorName},\nPlease process the following order:\n${spo}\n\n${_lines.join('\n')}\n\nRegards,\n${_sender}`;
+    const _sentAt=new Date().toISOString();
+    raisedOrders.forEach(o=>{ o.waSentAt=_sentAt; o.waSentBy=_sender; o.waSentVpo=spo; });
+    persistOrders();
+    try{ if(navigator.clipboard){ navigator.clipboard.writeText(_text); _copied=true; } }catch(e){}
+    const _rec=vendors.find(v=>v.name===vendorName);
+    const _waNum=_rec?.whatsapp?.replace(/\D/g,'')||'';
+    if(_waNum){ try{ openWhatsAppDesktop(_waNum,_text); }catch(e){} }
+  }
   if(count>0&&card){
     // Flash the whole card green for 3 seconds
     card.classList.remove('po-raised-flash');
@@ -12274,8 +12566,14 @@ function markVendorPORaised(vendorName, btn){
   // Mark button
   if(btn){btn.style.background='#16a34a';btn.style.borderColor='#16a34a';btn.textContent='✅ PO Raised!';}
   audit('PO_RAISED',`${count} order${count>1?'s':''} marked PO Raised for supplier "${vendorName}" · SPO: ${batchPoNum}`,'vendor',vendorName);
-  showToast(count+' order'+( count>1?'s':'')+' moved to PO Raised ✅','success');
-  setTimeout(()=>{renderVendorPO();vpoTab('raised');buildSidebar();},3100);
+  showToast(count+' order'+( count>1?'s':'')+' moved to PO Raised'+(_copied?' — message copied 📋':'')+' ✅','success');
+  // Land on the PO Raised section IMMEDIATELY. The old 3.1s delay let the live
+  // refresh (SSE → _pollOrders → renderPage) repaint the Approved tab in the
+  // meantime, so the user ended up on the wrong view. Pin the raised tab now.
+  _vpoActiveTab='raised';
+  if(currentPage!=='vendorpo'){ try{ navTo('vendorpo'); }catch(e){} }
+  vpoTab('raised');
+  buildSidebar();
 }
 
 // ── GENERATE VENDOR PO EXCEL ──
@@ -15761,8 +16059,14 @@ function _updateChipStates(){
       if(oldStr!==newStr){
         // Merge: keep local unsaved changes, update everything else
         const localDirty=new Set(Object.keys(_snap).filter(id=>_snap[id]!==JSON.stringify(orders.find(o=>String(o.id)===String(id)))));
+        const _gNow=Date.now();
         orders=fresh.map(f=>{
-          if(localDirty.has(String(f.id))){const local=orders.find(o=>String(o.id)===String(f.id));return local||f;}
+          const _fid=String(f.id);
+          // Keep the LOCAL copy if it's unsynced OR was changed locally in the last 20s.
+          // This stops a stale server read (e.g. DB replica lag, or a slower server when
+          // several people are working) from silently reverting a change you just made.
+          const _recent=_localTouch[_fid]&&(_gNow-_localTouch[_fid]<20000);
+          if(localDirty.has(_fid)||_recent){const local=orders.find(o=>String(o.id)===_fid);return local||f;}
           _snap[f.id]=JSON.stringify(f);
           return f;
         });
@@ -15813,6 +16117,7 @@ function _updateChipStates(){
   let _syncing=false;   /* semaphore — prevents concurrent POST duplicates */
   let _syncQueued=false; /* if a sync was requested while one was running, run again after */
   const _snap={};
+  const _localTouch={}; /* id → last local-change time (ms); guards recent edits from stale-read reverts */
   async function _syncOrders(){
     if(_syncing){ _syncQueued=true; return; }
     _syncing=true; _syncQueued=false;
@@ -15820,6 +16125,7 @@ function _updateChipStates(){
       for(const o of orders){
         const cur=JSON.stringify(o);
         if(_snap[o.id]===cur) continue;
+        const sentPayload=JSON.stringify(_toAPI(o)); // the exact data we are about to send
         try{
           if(!o._id){
             const r=await _req('POST','/api/orders',_toAPI(o));
@@ -15827,8 +16133,15 @@ function _updateChipStates(){
           }else{
             await _req('PUT','/api/orders/'+o._id,_toAPI(o));
           }
-          _snap[o.id]=JSON.stringify(o);
-          _clearPending(o.id);
+          // If the order changed while the request was in flight (e.g. you approved
+          // right after creating it), the server only has the OLD state. Do NOT mark
+          // it synced — otherwise a later poll reverts it. Leave it dirty and re-sync.
+          if(JSON.stringify(_toAPI(o))===sentPayload){
+            _snap[o.id]=JSON.stringify(o);
+            _clearPending(o.id);
+          }else{
+            _syncQueued=true;
+          }
         }catch(e){console.warn('order sync:',e);}
       }
     }finally{
@@ -15843,7 +16156,7 @@ function _updateChipStates(){
     /* Mark all dirty orders as pending BEFORE async sync — survives refresh */
     try{
       const dirtyIds=orders.filter(o=>!_snap[o.id]||_snap[o.id]!==JSON.stringify(o)).map(o=>o.id);
-      if(dirtyIds.length) _markPending(dirtyIds);
+      if(dirtyIds.length){ _markPending(dirtyIds); const _t=Date.now(); dirtyIds.forEach(id=>{ _localTouch[id]=_t; }); }
     }catch(e){}
     clearTimeout(_syncTimer);
     _syncOrders(); /* fire-and-forget; semaphore prevents concurrent duplicates */
