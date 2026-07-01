@@ -14,6 +14,11 @@
  *     API_URL: "http://localhost:5000"
  *     API_URL: "https://web-production-3ead93.up.railway.app"
  * ────────────────────────────────────────────────────────────── */
+// window.__APP_CONFIG__ = {
+//   API_URL: "http://localhost:5003"
+// };
+
+
 window.__APP_CONFIG__ = {
   API_URL: "https://oms.salestracker.in"
 };
