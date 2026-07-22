@@ -1,15 +1,20 @@
 # Stencil OMS — Order Management System
 
-A MERN-style app:
+A **MERN** app (MongoDB · Express · React · Node):
 
 - **Backend** — Express + MongoDB REST API (`Backend/`)
-- **Frontend** — a single self-contained `index.html` app (`Frontend/index.html`)
+- **Frontend** — a **React + Vite** client (`Frontend/`). The app UI lives in the
+  self-contained `Frontend/index.html`; React is wired in through Vite
+  (`Frontend/src/main.jsx` → `App.jsx`) as the build/runtime shell, so the whole
+  thing builds and runs as a real React app while the existing screens and logic
+  stay exactly as they are. Screens can be migrated into `src/` components over time.
 
-In local mode the **backend also serves the frontend**, so everything runs from
-one process on **http://localhost:5000**.
+Two ways to run the frontend:
 
-> Note: `Frontend/src/` is an older, unfinished React/Vite rewrite that is **not**
-> wired up. The live app is `Frontend/index.html`.
+- **One-process (simplest):** the **backend also serves `index.html`**, so
+  everything runs from one process on **http://localhost:5000** (no build step).
+- **React/Vite dev + build:** run the Vite dev server for hot-reload, and
+  `npm run build` to produce a deployable `dist/` (see below).
 
 ---
 
@@ -30,10 +35,35 @@ OMS/
 │   ├── utils/seed.js     # creates default roles + superadmin
 │   ├── .env              # your secrets (gitignored) — create from .env.example
 │   └── .env.example
-└── Frontend/
-    ├── index.html        # the live app (vanilla JS)
-    └── src/              # abandoned React scaffold (kept, not used)
+└── Frontend/            # React + Vite client
+    ├── index.html        # app markup + head + the Vite entry (~1.8k lines)
+    ├── legacy/           # the app's extracted CSS + JS (classic scripts)
+    │   ├── styles.css    #   was the inline <style>
+    │   └── app1..4.js    #   was the inline <script> (global-scope, load-ordered)
+    ├── config.js         # runtime API base (no build needed to change it)
+    ├── vite.config.js
+    ├── package.json      # dev / build / preview scripts
+    └── src/
+        ├── main.jsx      # React entry — mounts the shell (out-of-flow, no UI change)
+        ├── App.jsx       # React shell (migration seam for future components)
+        └── pages/, components/, store/, api/   # scaffold for the React migration
 ```
+
+---
+
+## Run the React frontend (Vite)
+
+```bash
+cd Frontend
+npm install
+npm run dev       # Vite dev server (hot reload) → http://localhost:5002
+npm run build     # production build → Frontend/dist (config.js copied in)
+npm run preview   # serve the built dist locally
+```
+
+The app resolves its backend at runtime from `Frontend/config.js`
+(`window.__APP_CONFIG__.API_URL`), so the same build works across environments —
+no rebuild needed to repoint it.
 
 ---
 
