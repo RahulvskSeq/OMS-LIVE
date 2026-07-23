@@ -1,72 +1,83 @@
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+/* Login — real React component (state-driven), for the true React app.
+ *
+ * Reuses the exact CSS classes from legacy/styles.css (#loginScreen, .lcard,
+ * .fg, .pwd-wrap, .btn, .lerr, .btn-spin) so it looks identical to the live
+ * app, but the behaviour is genuine React: controlled fields, an eye toggle
+ * via state, Enter-to-submit, a Redux login thunk hitting POST /api/auth/login,
+ * loading spinner and error display.
+ */
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { login, clearError } from '../store/slices/authSlice';
-import Spinner from '../components/ui/Spinner';
+import { login, clearError } from '../react/authSlice';
 
 export default function Login() {
-  const dispatch   = useDispatch();
-  const navigate   = useNavigate();
-  const { loading, error, token } = useSelector(s => s.auth);
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { loading, error } = useSelector((s) => s.auth);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
 
-  useEffect(() => { if (token) navigate('/dashboard', { replace: true }); }, [token]);
-  useEffect(() => { dispatch(clearError()); }, []);
-
-  const onSubmit = async (data) => {
-    const res = await dispatch(login(data));
-    if (res.meta.requestStatus === 'fulfilled') navigate('/dashboard');
-  };
+  async function submit() {
+    if (loading) return;
+    const res = await dispatch(login({ username: username.trim(), password: password.trim() }));
+    if (res.meta.requestStatus === 'fulfilled') navigate('/dashboard', { replace: true });
+  }
+  function onKeyDown(e) { if (e.key === 'Enter') submit(); }
+  function onType(setter) {
+    return (e) => { setter(e.target.value); if (error) dispatch(clearError()); };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-3xl mb-3 shadow-xl">S</div>
-          <h1 className="text-2xl font-black text-white">Stencil OMS</h1>
-          <p className="text-slate-400 text-sm mt-1">Order Management System</p>
+    <div id="loginScreen" style={{ display: 'flex' }}>
+      <div className="lcard">
+        <div className="logo">
+          <div className="icon">📦</div>
+          <h1>Order Management System</h1>
+          <p>Pending Stock Order Tracker — Bangalore</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-slate-800 mb-6">Sign in to continue</h2>
+        {error && <div className="lerr" style={{ display: 'block' }}>❌ {error}</div>}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg mb-4 font-medium">
-              {error}
-            </div>
-          )}
+        <div className="fg">
+          <label>Username</label>
+          <input
+            type="text"
+            placeholder="Enter username"
+            autoComplete="username"
+            value={username}
+            onChange={onType(setUsername)}
+            onKeyDown={onKeyDown}
+          />
+        </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="label">Username or Email</label>
-              <input
-                className="input"
-                placeholder="admin"
-                {...register('username', { required: 'Username is required' })}
-              />
-              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <input
-                type="password"
-                className="input"
-                placeholder="••••••••"
-                {...register('password', { required: 'Password is required' })}
-              />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-            </div>
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-2.5 mt-2">
-              {loading ? <Spinner size="sm" /> : 'Sign In'}
+        <div className="fg">
+          <label>Password</label>
+          <div className="pwd-wrap">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              placeholder="Enter password"
+              autoComplete="current-password"
+              value={password}
+              onChange={onType(setPassword)}
+              onKeyDown={onKeyDown}
+            />
+            <button
+              type="button"
+              className="pwd-eye"
+              onClick={() => setShowPwd((s) => !s)}
+              aria-label={showPwd ? 'Hide password' : 'Show password'}
+              title={showPwd ? 'Hide password' : 'Show password'}
+            >
+              {showPwd ? '🙈' : '👁️'}
             </button>
-          </form>
+          </div>
         </div>
 
-        <p className="text-center text-slate-500 text-xs mt-6">
-          Default: admin / admin123
-        </p>
+        <button className="btn btn-primary btn-block" disabled={loading} onClick={submit}>
+          {loading ? <span className="btn-spin" /> : '🔐 Sign In'}
+        </button>
       </div>
     </div>
   );

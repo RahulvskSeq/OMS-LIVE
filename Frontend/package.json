@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev":     "vite",
-    "build":   "vite build && cp config.js dist/config.js && cp -r legacy dist/legacy",
+    "build":   "vite build && cp config.js dist/config.js",
     "preview": "vite preview",
     "lint":    "eslint src --ext .js,.jsx"
   },

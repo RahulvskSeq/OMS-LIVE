@@ -138,11 +138,19 @@ global.__sseNotify = () => {
 };
 
 // ── Serve Frontend (one-server mode) ────────────────────────────
-// The standalone frontend lives in ../Frontend/index.html. Serving it from the
-// API origin means the browser hits the same host for both the page and /api.
-const FRONTEND_DIR = path.join(__dirname, '..', 'Frontend');
-app.use(express.static(FRONTEND_DIR));
-app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
+// The frontend is a React (Vite) app: it must be BUILT before serving. We serve
+// ../Frontend/dist when present; if it's missing we fall back to the raw source
+// (React won't run there) and log a build reminder. React Router uses hash
+// routes, so no SPA rewrite is needed.
+const fs = require('fs');
+const FRONTEND_ROOT = path.join(__dirname, '..', 'Frontend');
+const DIST_DIR = path.join(FRONTEND_ROOT, 'dist');
+const SERVE_DIR = fs.existsSync(path.join(DIST_DIR, 'index.html')) ? DIST_DIR : FRONTEND_ROOT;
+if (SERVE_DIR !== DIST_DIR) {
+  console.warn('[frontend] Frontend/dist not found — run `npm run build` in Frontend/. Serving raw source (the React app will NOT render until built).');
+}
+app.use(express.static(SERVE_DIR));
+app.get('/', (req, res) => res.sendFile(path.join(SERVE_DIR, 'index.html')));
 
 app.use(notFound);
 app.use(errorHandler);

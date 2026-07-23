@@ -9,7 +9,10 @@ const makeCrud = (Model, label) => ({
       const { search, isActive = 'true', page, limit } = req.query;
       const filter = {};
       if (isActive !== 'all') filter.isActive = isActive === 'true';
-      if (search) filter.name = { $regex: search, $options: 'i' };
+      if (search) {
+        const rx = { $regex: search, $options: 'i' };
+        filter.$or = [{ name: rx }, { code: rx }];
+      }
       // Opt-in pagination: ONLY when page/limit is supplied. Without them the
       // response is identical to before ({ success, data }), so every existing
       // caller is untouched. With them, the catalog can be streamed in chunks
