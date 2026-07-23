@@ -2,8 +2,12 @@ const router = require('express').Router();
 const ctrl   = require('../controllers/dashboard.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { can }     = require('../middleware/permission.middleware');
+const { cacheGet } = require('../middleware/cache.middleware');
 
 router.use(protect, can('viewAllOrders'));
+// Dashboard aggregates are expensive to compute and change only on order writes
+// (which clear the 'dash' prefix). Cache each endpoint by URL for a short window.
+router.use(cacheGet('dash', 20000));
 
 router.get('/summary',         ctrl.getSummary);
 router.get('/pipeline',        ctrl.getPipeline);

@@ -1,6 +1,23 @@
 const Order = require('../models/Order');
 const { syncToSheets } = require('./sheetsSync');
 
+// Union two append-only arrays (trail / etaHistory / comments) so a stale
+// full-order save can never DELETE entries another user added concurrently.
+// The vanilla client PUTs the whole order; if its copy is a few seconds old it
+// omits a concurrent entry, and a wholesale replace would lose it. We instead
+// keep every entry the client sent PLUS any the server has that the client
+// lacked. Deduped by _id (existing entries keep theirs) or JSON identity.
+// Returns undefined when the client did not send the field (→ leave unchanged).
+const mergeAppendOnly = (serverArr, incomingArr) => {
+  if (incomingArr === undefined) return undefined;
+  const inc = Array.isArray(incomingArr) ? incomingArr : [];
+  const srv = Array.isArray(serverArr) ? serverArr : [];
+  const keyOf = (e) => (e && e._id != null) ? 'id:' + String(e._id) : 'j:' + JSON.stringify(e);
+  const seen = new Set(inc.map(keyOf));
+  const extra = srv.filter(e => !seen.has(keyOf(e))).map(e => (e && e.toObject ? e.toObject() : e));
+  return [...inc, ...extra];
+};
+
 const trailEntry = (type, desc, from, to, note, user) => ({
   type, desc,
   from: from || '',
@@ -45,10 +62,10 @@ exports.getOrders = async (req, res, next) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [orders, total] = await Promise.all([
-      Order.find(filter).sort(sort).skip(skip).limit(parseInt(limit))
-        .populate('customerId','name city')
-        .populate('supplierId','name')
-        .populate('transporterId','name avgTransitDays'),
+      // .lean() skips Mongoose hydration; the populate() calls were dropped
+      // because the frontend uses the denormalized customer/vendor strings, not
+      // the populated refs — so they were pure wasted DB work.
+      Order.find(filter).sort(sort).skip(skip).limit(parseInt(limit)).lean(),
       Order.countDocuments(filter),
     ]);
 
@@ -112,10 +129,17 @@ exports.updateOrder = async (req, res, next) => {
       }
     });
 
-    // Array / object fields — replace wholesale if provided
-    if (req.body.comments    !== undefined) order.comments       = req.body.comments;
-    if (req.body.etaHistory  !== undefined) order.etaHistory     = req.body.etaHistory;
-    if (req.body.trail       !== undefined) order.trail          = req.body.trail;
+    // Append-only history — MERGE (union) instead of replacing, so a stale
+    // save from another user can't delete entries added concurrently.
+    const mTrail    = mergeAppendOnly(order.trail,      req.body.trail);
+    const mEtaHist  = mergeAppendOnly(order.etaHistory, req.body.etaHistory);
+    const mComments = mergeAppendOnly(order.comments,   req.body.comments);
+    if (mTrail    !== undefined) order.trail      = mTrail;
+    if (mEtaHist  !== undefined) order.etaHistory = mEtaHist;
+    if (mComments !== undefined) order.comments   = mComments;
+
+    // Current-state objects — last-write-wins is acceptable (they represent the
+    // latest GRN / billing / delivery snapshot, not an accumulating log).
     if (req.body.grn         !== undefined) order.grn            = req.body.grn;
     if (req.body.billing     !== undefined) order.billing        = req.body.billing;
     if (req.body.delivery    !== undefined) order.delivery       = req.body.delivery;

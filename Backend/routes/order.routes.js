@@ -2,12 +2,15 @@ const router = require('express').Router();
 const ctrl   = require('../controllers/order.controller');
 const { protect, restrictTo } = require('../middleware/auth.middleware');
 const { can }      = require('../middleware/permission.middleware');
+const { cacheGet, invalidate } = require('../middleware/cache.middleware');
 
 router.use(protect);
+// Any write to an order invalidates the cached order list + dashboard aggregates.
+router.use(invalidate('orders', 'dash'));
 
 router.post('/maintenance/dedup', restrictTo('superadmin','admin'), ctrl.dedupOrders);
 
-router.get  ('/',              can('viewAllOrders'), ctrl.getOrders);
+router.get  ('/',              can('viewAllOrders'), cacheGet('orders', 20000), ctrl.getOrders);
 router.get  ('/:id',           can('viewAllOrders'), ctrl.getOrder);
 router.post ('/',              can('createOrder'),   ctrl.createOrder);
 router.put  ('/:id',           can('editOrder'),     ctrl.updateOrder);

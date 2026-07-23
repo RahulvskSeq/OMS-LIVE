@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Counter  = require('./Counter');
 
 // ── Trail Entry ──────────────────────────────────────────────────
 const trailEntrySchema = new mongoose.Schema({
@@ -127,21 +128,45 @@ const orderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // ── Indexes ──────────────────────────────────────────────────────
-orderSchema.index({ seqId: 1 });
+orderSchema.index({ seqId: 1 }, { unique: true, sparse: true });
 orderSchema.index({ status: 1 });
 orderSchema.index({ customer: 1 });
 orderSchema.index({ orderDate: -1 });
 orderSchema.index({ eta: 1 });
 orderSchema.index({ customerId: 1 });
 
-// ── Auto-increment seqId ─────────────────────────────────────────
-orderSchema.pre('save', async function(next) {
-  if (this.isNew && !this.seqId) {
-    const last = await this.constructor.findOne({}, {}, { sort: { seqId: -1 } });
-    this.seqId = last ? last.seqId + 1 : 1001;
-    if (!this.groupDonId) this.groupDonId = this.seqId;
+// ── Auto-increment seqId (concurrency-safe) ──────────────────────
+// Two users creating orders at the same instant previously both read the same
+// "max seqId" and computed the same +1 → duplicate DON numbers. Now the number
+// comes from an atomic counter document, so every create gets a unique value
+// even under simultaneous requests.
+async function nextOrderSeq(OrderModel) {
+  // Lazily seed the counter from the current max seqId the first time it is
+  // used, so new ids continue after existing data instead of restarting at 1001.
+  const existing = await Counter.findById('orderSeq').lean();
+  if (!existing) {
+    const last  = await OrderModel.findOne({}, { seqId: 1 }).sort({ seqId: -1 }).lean();
+    const start = last && last.seqId ? last.seqId : 1000;
+    // $setOnInsert is atomic: if two creates race the seed, only the first
+    // insert seeds — the loser hits the existing doc and is ignored.
+    await Counter.updateOne({ _id: 'orderSeq' }, { $setOnInsert: { seq: start } }, { upsert: true });
   }
-  next();
+  const doc = await Counter.findByIdAndUpdate(
+    'orderSeq',
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true },
+  );
+  return doc.seq;
+}
+
+orderSchema.pre('save', async function(next) {
+  try {
+    if (this.isNew && !this.seqId) {
+      this.seqId = await nextOrderSeq(this.constructor);
+      if (!this.groupDonId) this.groupDonId = this.seqId;
+    }
+    next();
+  } catch (err) { next(err); }
 });
 
 
@@ -155,6 +180,11 @@ orderSchema.pre('save', function(next){
 });
 
 // Notify connected SSE clients on any order change (create / status / grn / billing / etc.)
-orderSchema.post('save', function(doc){ try{ if(global.__sseNotify) global.__sseNotify(doc); }catch(e){} });
+// and drop the cached order list + dashboard aggregates so the next read is fresh.
+// Covers writes that bypass the route middleware (e.g. background sheet sync).
+orderSchema.post('save', function(doc){
+  try{ if(global.__sseNotify) global.__sseNotify(doc); }catch(e){}
+  try{ const c = require('../middleware/cache.middleware'); c.clear('orders'); c.clear('dash'); }catch(e){}
+});
 
 module.exports = mongoose.model('Order', orderSchema);
