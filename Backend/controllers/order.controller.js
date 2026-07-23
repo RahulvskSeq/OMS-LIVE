@@ -93,7 +93,25 @@ exports.createOrder = async (req, res, next) => {
       createdById: req.user._id,
     });
     order.trail = [trailEntry('created','Order created','',body.status||'Order','',req.user)];
-    await order.save();
+
+    // Save with self-healing on a duplicate seqId. The DON number comes from an
+    // atomic counter; if that counter ever falls behind the collection (e.g.
+    // orders created out-of-band, or a mixed old/new deploy), $inc can yield an
+    // already-used seqId and the unique index rejects it. On that specific
+    // collision, resync the counter to the true max and let the hook regenerate.
+    const Counter = require('../models/Counter');
+    const explicitGroupDon = body.groupDonId != null;
+    for (let attempt = 0; ; attempt++) {
+      try { await order.save(); break; }
+      catch (e) {
+        const dupSeq = e && e.code === 11000 && ((e.keyPattern && e.keyPattern.seqId) || /seqId/.test(e.message || ''));
+        if (!dupSeq || attempt >= 5) throw e;
+        const last = await Order.findOne({}, { seqId: 1 }).sort({ seqId: -1 }).lean();
+        await Counter.updateOne({ _id: 'orderSeq' }, { $set: { seq: (last && last.seqId) || 1000 } });
+        order.seqId = undefined;                       // force the hook to regenerate
+        if (!explicitGroupDon) order.groupDonId = undefined;
+      }
+    }
     syncToSheets(order).catch(() => {});
     res.status(201).json({ success: true, data: order, message: 'Order created' });
   } catch (err) { next(err); }

@@ -210,6 +210,16 @@
     };
   }
 
+  /* Only the fields that changed vs a baseline order (both in _toAPI shape).
+     The sync PUTs this delta instead of the whole order, so a concurrent write
+     from another user can't revert a field THIS client never touched — e.g. you
+     approve an order while a colleague edits its ETA; both changes survive. */
+  function _deltaAPI(baseObj, curObj){
+    const b=_toAPI(baseObj), c=_toAPI(curObj), d={};
+    for(const k in c){ if(JSON.stringify(c[k])!==JSON.stringify(b[k])) d[k]=c[k]; }
+    return d;
+  }
+
   /* ── Pending sync queue: order IDs changed locally but not yet confirmed by API ── */
   const _PENDING_KEY = 'stencil_pending_v1';
   function _markPending(ids){
@@ -780,19 +790,23 @@
       for(const o of orders){
         const cur=JSON.stringify(o);
         if(_snap[o.id]===cur) continue;
-        const sentPayload=JSON.stringify(_toAPI(o)); // the exact data we are about to send
         try{
           if(!o._id){
-            const r=await _req('POST','/api/orders',_toAPI(o));
+            const r=await _req('POST','/api/orders',_toAPI(o)); /* create: send full */
             if(r.data){o._id=r.data._id;o.id=r.data.seqId||o.id;}
           }else{
-            await _req('PUT','/api/orders/'+o._id,_toAPI(o));
+            /* PUT only the fields changed since our last sync — never a full
+               stale snapshot — so we can't revert another user's concurrent
+               change to a field we didn't touch (e.g. their status update). */
+            const base=_snap[o.id]?JSON.parse(_snap[o.id]):null;
+            const payload=base?_deltaAPI(base,o):_toAPI(o);
+            if(Object.keys(payload).length) await _req('PUT','/api/orders/'+o._id,payload);
           }
           // If the order changed while the request was in flight (e.g. you approved
           // right after creating it), the server only has the OLD state. Do NOT mark
           // it synced — otherwise a later poll reverts it. Leave it dirty and re-sync.
-          if(JSON.stringify(_toAPI(o))===sentPayload){
-            _snap[o.id]=JSON.stringify(o);
+          if(JSON.stringify(o)===cur){
+            _snap[o.id]=cur;
             _clearPending(o.id);
           }else{
             _syncQueued=true;
