@@ -3,19 +3,1825 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Order Management System</title>
+<title>Pending Order Management System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- CDN libs used for Excel export / screenshots -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<!-- Runtime API base (edit config.js per environment; no rebuild needed) -->
+<!-- Runtime config (edit Frontend/config.js per environment; no build needed). Must load BEFORE the resolver below. -->
 <script src="/config.js"></script>
+<script>
+/* API base resolver (ORIGIN only — the app appends "/api/..." to every call).
+   1) API_URL from config.js (window.__APP_CONFIG__) — set it per environment.
+   2) If it's blank or config.js is missing, fall back to: same-origin on
+      localhost, otherwise the deployed backend. */
+window.__API__ = (function () {
+  var cfg = ((window.__APP_CONFIG__ && window.__APP_CONFIG__.API_URL) || '').trim();
+  if (cfg) return cfg.replace(/\/+$/, '');
+  var h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '') return location.origin;
+  return 'https://web-production-3ead93.up.railway.app';
+})();
+</script>
+<link rel="stylesheet" href="/legacy/styles.css">
 </head>
 <body>
-  <!-- The entire UI is rendered by React into this one node. -->
-  <div id="root"></div>
-  <script type="module" src="/src/react-main.jsx"></script>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="loginScreen">
+  <div class="lcard">
+    <div class="logo"><div class="icon">📦</div><h1>Order Management System</h1><p>Pending Stock Order Tracker — Bangalore</p></div>
+    <div id="lerr" class="lerr">❌ Invalid credentials. Please try again.</div>
+    <div class="fg"><label>Username</label><input id="lusr" type="text" placeholder="Enter username" autocomplete="username"></div>
+    <div class="fg"><label>Password</label>
+      <div class="pwd-wrap">
+        <input id="lpwd" type="password" placeholder="Enter password" autocomplete="current-password">
+        <button type="button" class="pwd-eye" id="lpwdEye" onclick="togglePwd('lpwd','lpwdEye')" aria-label="Show password" title="Show password">👁️</button>
+      </div>
+    </div>
+    <button id="loginBtn" class="btn btn-primary btn-block" onclick="doLogin()">🔐 Sign In</button>
+  </div>
+</div>
+
+<!-- ═══════════════ APP LOADER (login + data fetch) ═══════════════ -->
+<div id="appLoader">
+  <div class="al-card">
+    <div class="al-spinner"></div>
+    <div class="al-text" id="alText">Signing you in…</div>
+    <div class="al-sub" id="alSub">Please wait</div>
+  </div>
+</div>
+
+<!-- ═══════════════ TOAST ═══════════════ -->
+<div id="toast" class="toast"></div>
+<div id="ordCountBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:rgba(30,41,59,.92);backdrop-filter:blur(6px);color:#e2e8f0;font-size:12px;font-weight:700;padding:7px 20px;display:none;align-items:center;gap:10px;pointer-events:none">
+  <span id="ordCountBarText"></span>
+</div>
+
+<!-- ═══════════════ APP ═══════════════ -->
+<div id="app">
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sb-logo">
+    <h2>📦 <span>Order Management</span></h2>
+    <p>Pending Stock Tracker</p>
+  </div>
+  <div class="sb-user">
+    <div class="avatar" id="sbAvatar">SA</div>
+    <div class="sb-user-info"><h4 id="sbName">Super Admin</h4><p id="sbRole">Super Admin</p></div>
+  </div>
+  <nav class="sb-nav" id="sbNav"></nav>
+  <div class="sb-footer">
+    <button class="btn btn-outline btn-sm" onclick="doLogout()" style="width:100%;justify-content:center">🚪 <span class="logout-txt">Logout</span></button>
+  </div>
+</div>
+<div id="sbNavTooltip"></div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <button class="mob-menu-btn" id="mobMenuBtn" onclick="window.innerWidth<=768?toggleMobSidebar():cycleSidebar()" title="Toggle sidebar">☰</button>
+<h2 id="pageTitle" style="display:none">Dashboard</h2>
+    <div class="topbar-right" style="display:flex;align-items:center;gap:10px">
+      <!-- Login-as switcher (admin/superadmin only) -->
+      <div id="loginAsWrap" style="display:none;position:relative">
+        <button onclick="toggleLoginAsMenu()" style="background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;display:flex;align-items:center;gap:6px">
+          👤 Login as <span style="font-size:10px">▾</span>
+        </button>
+        <div id="loginAsMenu" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);min-width:220px;z-index:9999;overflow:hidden;max-height:360px;display:none;flex-direction:column"></div>
+      </div>
+      <!-- Backup / Restore — visible to superadmin & admin -->
+      <div id="topbarBackupBtns" style="display:none;align-items:center;gap:6px">
+        <button onclick="beExportAll()" title="Download full data backup"
+          style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;color:#15803d;cursor:pointer;display:flex;align-items:center;gap:5px">
+          💾 Backup
+        </button>
+        <label title="Restore from a backup file" style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700;color:#b91c1c;cursor:pointer;display:flex;align-items:center;gap:5px;margin:0">
+          📂 Restore
+          <input type="file" id="topbarRestoreFile" accept=".json" style="display:none" onchange="_doRestoreFromFile(this.files[0])">
+        </label>
+      </div>
+      <div id="topbarActions"></div>
+      <!-- Persistent New Order button — always visible for authorised roles -->
+      <div id="topbarNewOrderBtn" style="display:none">
+        <button onclick="openOrderModal()"
+          style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:9px;border:none;
+            background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;font-size:13px;font-weight:700;
+            cursor:pointer;box-shadow:0 2px 10px rgba(249,115,22,.4);white-space:nowrap;transition:all .15s"
+          onmouseover="this.style.opacity='.88';this.style.boxShadow='0 4px 16px rgba(249,115,22,.55)'"
+          onmouseout="this.style.opacity='1';this.style.boxShadow='0 2px 10px rgba(249,115,22,.4)'">
+          + New Order
+        </button>
+      </div>
+      <!-- Dashboard Customize button — visible only on dashboard -->
+      <div id="topbarCustomizeBtn" style="display:none;position:relative">
+        <button onclick="_toggleDashCustomize()" id="dashCustomizeBtn" title="Customize dashboard"
+          style="width:36px;height:36px;border-radius:9px;background:#f1f5f9;border:1.5px solid #e2e8f0;color:#64748b;font-size:16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center"
+          onmouseover="this.style.background='#e2e8f0';this.style.color='#1a73e8';this.style.borderColor='#1a73e8'"
+          onmouseout="this.style.background='#f1f5f9';this.style.color='#64748b';this.style.borderColor='#e2e8f0'">⚙</button>
+        <div id="dashCustomizePanel" style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:230px;z-index:9999;overflow:hidden"></div>
+      </div>
+      <!-- Notification bell -->
+      <div class="notif-bell-wrap" onclick="toggleNotifDrop()" id="notifBellWrap" title="Notifications">
+        <button style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px;line-height:1;color:#475569" id="notifBellBtn">🔔</button>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+        <div class="notif-drop" id="notifDrop">
+          <div class="notif-head">
+            <h4>🔔 Notifications</h4>
+            <button onclick="event.stopPropagation();markAllNotifsRead()" style="font-size:11px;color:#1a73e8;background:none;border:none;cursor:pointer;font-weight:700">Mark all read</button>
+          </div>
+          <div class="notif-body" id="notifBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pcontent">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="pg-dashboard" class="page active">
+      <div id="dashRoleWidget"></div>
+
+      <!-- ── HERO HEADER ── -->
+      <div id="dashHero" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 55%,#1a56a0 100%);border-radius:16px;padding:20px 24px 16px;margin-bottom:20px;box-shadow:0 8px 32px rgba(15,23,42,.28)">
+
+        <!-- Row 1: Greeting | Date+Time | Actions -->
+        <div style="display:flex;align-items:center;gap:16px">
+
+          <!-- Greeting block -->
+          <div style="flex:1;min-width:0">
+            <div id="dashGreeting" style="font-size:18px;font-weight:800;color:#fff;line-height:1.2"></div>
+            <div id="dashSubGreeting" style="font-size:11px;color:#93c5fd;margin-top:2px"></div>
+          </div>
+
+          <!-- Date + Time -->
+          <div style="text-align:center;padding:0 16px;border-left:1px solid rgba(255,255,255,.12);border-right:1px solid rgba(255,255,255,.12)">
+            <div id="dashDate" style="font-size:11px;font-weight:600;color:#93c5fd;letter-spacing:.02em"></div>
+            <div id="dashTime" style="font-size:24px;font-weight:900;color:#fff;font-family:monospace;letter-spacing:3px;line-height:1.1"></div>
+          </div>
+
+          <!-- Action buttons -->
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="filterAndGoOrders('')"
+              style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#e2e8f0;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap"
+              onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">📋 All Orders</button>
+            <button onclick="navTo('orders');openOrderModal()"
+              style="padding:8px 16px;border-radius:10px;background:#f97316;border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(249,115,22,.4);white-space:nowrap;transition:all .15s"
+              onmouseover="this.style.background='#ea6c0a'" onmouseout="this.style.background='#f97316'">+ New Order</button>
+          </div>
+        </div>
+
+        <!-- Row 2: Unit bar -->
+        <div id="dashUnitBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)"></div>
+      </div>
+
+
+      <!-- ── EDIT MODE BANNER ── -->
+      <div id="dashEditBanner">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:16px">✏️</span>
+          <span>👆 <strong>Click a card</strong> to select it, then <strong>click any other card</strong> to swap · cards resize to fit their new slot</span>
+        </div>
+        <button onclick="_toggleDashEditMode()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:5px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Done</button>
+      </div>
+
+      <!-- ── DASHBOARD ROWS ── -->
+      <div class="dash-layout-body" id="dashGrid">
+
+        <!-- Pipeline / Order Journey — slot 1, full-width, FIXED -->
+        <div class="dash-cw span2" data-card="pipeline" data-slot="1" data-fixed="true" data-span="2">
+          <div class="dash-card" id="dashPipelineSection">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct">🗺️ Order Journey</div>
+              </div>
+            </div>
+            <div style="padding:10px 14px 10px;overflow-x:auto;overflow-y:visible">
+              <div id="pipeFlow" style="display:flex;align-items:center;justify-content:space-between;min-width:600px;padding:0;overflow:visible"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recently Purchased card — fixed full-width strip -->
+        <div class="dash-cw span2" data-card="recentpurch" data-fixed="true" data-span="2">
+          <div class="dash-card" id="dashRecentPurchCard">
+            <div class="dash-ch" style="padding:7px 16px 6px;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">💰 Purchased</span>
+                <span id="recentPurchTotal" style="font-size:10px;color:#94a3b8;font-weight:600"></span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button id="rpTabToday"     onclick="_setRpTab('today')"     style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid #10b981;background:#10b981;color:#fff;transition:all .15s">Today</button>
+                <button id="rpTabYesterday" onclick="_setRpTab('yesterday')" style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .15s">Yesterday</button>
+              </div>
+            </div>
+            <div id="recentPurchList" style="overflow-x:auto;overflow-y:auto;flex:1;scroll-behavior:smooth"></div>
+            <div id="recentPurchFooter" style="flex-shrink:0;padding:6px 14px;border-top:1.5px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;min-height:30px"></div>
+          </div>
+        </div>
+
+        <!-- Due Orders — fixed full-width strip below pipeline -->
+        <div class="dash-cw span2" data-card="due" data-fixed="true" data-span="2">
+          <div class="dash-card" id="dashDueCard">
+            <div class="dash-ch" style="gap:8px;flex-wrap:nowrap;align-items:center;padding:6px 12px">
+              <div style="font-size:12px;font-weight:800;color:#1e293b;white-space:nowrap;flex-shrink:0">📅 Due Orders</div>
+              <div class="due-tabs-wrap" style="flex:1;justify-content:center">
+                <button id="dueTabOverdue"  class="due-tab" onclick="_setDueTab('overdue')"  style="background:#dc2626;color:#fff">🔴 Overdue</button>
+                <button id="dueTabToday"    class="due-tab" onclick="_setDueTab('today')"    style="background:transparent;color:#94a3b8">🟡 Today</button>
+                <button id="dueTabTomorrow" class="due-tab" onclick="_setDueTab('tomorrow')" style="background:transparent;color:#94a3b8">🔵 Tomo</button>
+              </div>
+              <span id="dueTotalLabel" style="font-size:10px;color:#94a3b8;font-weight:600;white-space:nowrap;flex-shrink:0"></span>
+            </div>
+            <div id="dueOrdersList" style="overflow-x:auto;overflow-y:auto;flex:1;scroll-behavior:smooth"></div>
+            <div id="dueOrdersFooter" style="flex-shrink:0;padding:6px 14px;border-top:1.5px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;min-height:30px"></div>
+          </div>
+        </div>
+
+        <!-- LR Numbers card — fixed full-width strip -->
+        <div class="dash-cw span2" data-card="lr" data-fixed="true" data-span="2">
+          <div class="dash-card" id="dashLrCard">
+            <div class="dash-ch" style="padding:7px 16px 6px;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">🧾 LR at Transporter</span>
+                <span id="lrCardTotal" style="font-size:10px;color:#94a3b8;font-weight:600"></span>
+              </div>
+              <label style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#64748b;cursor:pointer;white-space:nowrap;flex-shrink:0">
+                <input type="checkbox" id="lrCardActiveOnly" checked onchange="renderLrCard()" style="accent-color:#7c3aed"> Active only
+              </label>
+            </div>
+            <div id="lrCardList" style="overflow-x:auto;overflow-y:auto;flex:1;scroll-behavior:smooth"></div>
+            <div id="lrCardFooter" style="flex-shrink:0;padding:6px 14px;border-top:1.5px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;min-height:30px"></div>
+          </div>
+        </div>
+
+        <!-- Pending DONs — slot 2, half-width, swappable -->
+        <div class="dash-cw" data-card="don" data-slot="2" data-span="1">
+          <div class="dash-drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="dash-card" id="dashDonCard">
+            <div class="dash-ch">
+              <div style="min-width:0">
+                <div class="dash-ct">📦 Pending DONs</div>
+                <div class="dash-cs" id="dashDonSubtitle"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:visible;transition:border-color .15s">
+                  <input class="srch" id="dashDonSrch" type="text" placeholder="Search…"
+                    style="border:none;outline:none;padding:5px 10px;font-size:11px;background:transparent;width:100px"
+                    oninput="_dashDonPage=1;renderDashDonList()"
+                    onfocus="this.closest('div').style.borderColor='#1a73e8';this.closest('div').style.background='#fff'"
+                    onblur="this.closest('div').style.borderColor='#e2e8f0';this.closest('div').style.background='#f8fafc'">
+                  <div id="dashDonFilters" style="display:inline-flex;flex-shrink:0"></div>
+                </div>
+              </div>
+            </div>
+            <div id="dashDonList" class="dash-cb"></div>
+            <div id="dashDonPager" class="card-pager" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Pending SPOs — slot 3, half-width, swappable -->
+        <div class="dash-cw" data-card="spo" data-slot="3" data-span="1">
+          <div class="dash-drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="dash-card" id="dashVpoCard">
+            <div class="dash-ch">
+              <div style="min-width:0">
+                <div class="dash-ct">📄 Pending SPOs</div>
+                <div class="dash-cs" id="dashVpoSubtitle"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:visible;transition:border-color .15s">
+                  <input class="srch" id="dashVpoSrch" type="text" placeholder="Search…"
+                    style="border:none;outline:none;padding:5px 10px;font-size:11px;background:transparent;width:100px"
+                    oninput="_dashSpoPage=1;renderDashVpoList()"
+                    onfocus="this.closest('div').style.borderColor='#0d9488';this.closest('div').style.background='#fff'"
+                    onblur="this.closest('div').style.borderColor='#e2e8f0';this.closest('div').style.background='#f8fafc'">
+                  <div id="dashVpoFilters" style="display:inline-flex;flex-shrink:0"></div>
+                </div>
+              </div>
+            </div>
+            <div id="dashVpoList" class="dash-cb"></div>
+            <div id="dashVpoPager" class="card-pager" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Dealer Summary — slot 4, full-width long panel, swappable -->
+        <div class="dash-cw span2" data-card="dealer" data-slot="4" data-span="2">
+          <div class="dash-drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="dash-card" id="dashDealerCard">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct">🏪 Dealer Summary</div>
+                <div class="dash-cs" id="dpsTotalLabel"></div>
+              </div>
+              <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
+                <input class="srch" id="dpsSrch" type="text" placeholder="Search…"
+                  style="border:none;outline:none;padding:5px 10px;font-size:11px;background:transparent;width:110px"
+                  oninput="_dpsPage=1;renderDealerSummary()"
+                  onfocus="this.closest('div').style.borderColor='#8b5cf6';this.closest('div').style.background='#fff'"
+                  onblur="this.closest('div').style.borderColor='#e2e8f0';this.closest('div').style.background='#f8fafc'">
+              </div>
+            </div>
+            <div id="dealerSummaryList" class="dash-cb" style="padding:8px 12px"></div>
+            <div id="dealerSummaryPager" class="card-pager" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Supplier Summary — slot 5, full-width long panel, swappable -->
+        <div class="dash-cw span2" data-card="supplier" data-slot="5" data-span="2">
+          <div class="dash-drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="dash-card" id="dashSupplierCard">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct">🏭 Supplier Summary</div>
+                <div class="dash-cs" id="spsTotalLabel"></div>
+              </div>
+              <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
+                <input class="srch" id="spsSrch" type="text" placeholder="Search…"
+                  style="border:none;outline:none;padding:5px 10px;font-size:11px;background:transparent;width:110px"
+                  oninput="_spsPage=1;renderSupplierSummary()"
+                  onfocus="this.closest('div').style.borderColor='#0891b2';this.closest('div').style.background='#fff'"
+                  onblur="this.closest('div').style.borderColor='#e2e8f0';this.closest('div').style.background='#f8fafc'">
+              </div>
+            </div>
+            <div id="supplierSummaryList" class="dash-cb" style="padding:8px 12px"></div>
+            <div id="supplierSummaryPager" class="card-pager" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- ETA Edited / Material Status card -->
+        <div class="dash-cw span2" data-card="etaedited" data-fixed="true" data-span="2">
+          <div class="dash-card" id="dashEtaEditedCard">
+            <div class="dash-ch" style="padding:8px 16px 6px;gap:10px;flex-wrap:nowrap;align-items:center;border-bottom:none">
+              <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">📅 ETA Edited Orders</span>
+              </div>
+              <div style="display:flex;gap:4px;flex-shrink:0">
+                <button id="etaTabAll"      onclick="_setEtaTab('all')"      style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:#e2e8f0;color:#64748b;transition:all .15s">All</button>
+                <button id="etaTabDelayed"  onclick="_setEtaTab('delayed')"  style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🔴 Delayed</button>
+                <button id="etaTabOntime"   onclick="_setEtaTab('ontime')"   style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🔵 Arriving on time</button>
+                <button id="etaTabPrepared" onclick="_setEtaTab('prepared')" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;color:#94a3b8;transition:all .15s">🟢 May arrive early</button>
+              </div>
+            </div>
+            <!-- Stats bar -->
+            <div id="etaStatsBar" style="display:flex;gap:8px;padding:5px 16px 7px;border-bottom:1.5px solid #f1f5f9;flex-wrap:wrap"></div>
+            <div id="etaEditedList" style="overflow-x:hidden;overflow-y:auto;flex:1;scroll-behavior:smooth;padding:6px 10px;display:flex;flex-direction:column;gap:6px"></div>
+            <div id="etaEditedFooter" style="flex-shrink:0;padding:5px 14px;border-top:1.5px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;min-height:28px"></div>
+          </div>
+        </div>
+
+        <!-- Recent Orders — slot 6, full-width longer panel, swappable -->
+        <div class="dash-cw span2" data-card="recent" data-slot="5" data-span="2">
+          <div class="dash-drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="dash-card" id="dashRecentCard">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct">📋 Recent Orders</div>
+                <div class="dash-cs" id="dashCount"></div>
+              </div>
+              <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
+                <input class="srch" id="dashSrch" type="text" placeholder="Search…"
+                  style="border:none;outline:none;padding:5px 10px;font-size:11px;background:transparent;width:130px"
+                  oninput="_dashRecentPage=1;renderDashOrders()"
+                  onfocus="this.closest('div').style.borderColor='#f97316';this.closest('div').style.background='#fff'"
+                  onblur="this.closest('div').style.borderColor='#e2e8f0';this.closest('div').style.background='#f8fafc'">
+              </div>
+            </div>
+            <div class="dash-cb" id="dashRecentScrollWrap"><div id="dashOrdersTable"></div></div>
+            <div id="dashRecentPager" class="card-pager" style="display:none"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ── ORDERS ── -->
+    <!-- ── ORDERS ── -->
+    <div id="pg-orders" class="page">
+      <div id="ordKpiGrid" style="background:#fff;border-radius:14px;padding:14px 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:14px;overflow-x:auto"></div>
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 All Orders <span id="ordCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="ordersHeaderActions"></div>
+        </div>
+        <div class="tbar" style="flex-wrap:wrap;gap:8px">
+          <input class="srch" id="ordSrch" type="text" placeholder="🔍 Search DON / customer / product / SPO…" style="width:280px;min-width:160px" oninput="_donExactFilter=null;_spoActiveFilter=null;_pendingOnlyFilter=false;_hidePendingFilterBanner();renderOrdersTable()">
+          <button id="stockFilterBtn" onclick="_toggleStockFilter()" style="display:none!important">
+            📦 Stock Orders <span id="stockFilterCount"></span>
+          </button>
+          <button id="showCancelledToggle" style="display:none"></button>
+        </div>
+        <!-- hidden selects kept for compatibility -->
+        <select id="ordStatus" style="display:none"></select>
+        <select id="ordCust" style="display:none"></select>
+        <select id="ordVend" style="display:none"></select>
+        <select id="ordBiller" style="display:none"></select>
+        <div class="ord-table-scroll" id="ordersScrollWrap">
+          <div id="ordersTableWrap"></div>
+          <div id="ordInfiniteLoader" style="display:none;text-align:center;padding:14px;color:#94a3b8;font-size:13px">⏳ Loading more…</div>
+        </div>
+        <div class="tpagn"><div class="pbtns" id="ordPagn" style="display:none"></div></div>
+      </div>
+    </div>
+
+    <!-- ── PRODUCT MASTER ── -->
+    <div id="pg-products" class="page">
+      <div class="card">
+        <div class="card-header">
+          <h3>🗂 Product Master <span id="prodCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="prodHeaderActions"></div>
+        </div>
+        <div class="tbar">
+          <input class="srch" id="prodSrch" type="text" placeholder="🔍 Product code or name…" style="width:210px">
+          <select class="fsel" id="prodCat"><option value="">All Categories</option>
+            <option>Plywood</option><option>Veneer</option><option>MDF</option><option>Engineered</option><option>Other</option>
+          </select>
+          <select class="fsel" id="prodVendFil"><option value="">All Suppliers</option></select>
+          <button class="btn btn-primary btn-sm" onclick="renderProductsTable()">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" onclick="clearProdFilters()">✕ Clear</button>
+        </div>
+        <div id="productsTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- ── CUSTOMER MASTER ── -->
+    <div id="pg-customers" class="page">
+      <div class="card">
+        <div class="card-header">
+          <h3>👥 Customer Master <span id="custCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="custHeaderActions"></div>
+        </div>
+        <div class="tbar">
+          <input class="srch" id="custSrch" type="text" placeholder="🔍 Name / phone / contact…" style="width:210px">
+          <select class="fsel" id="custCity"><option value="">All Cities</option></select>
+          <button class="btn btn-primary btn-sm" onclick="renderCustomersTable()">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" onclick="clearCustFilters()">✕ Clear</button>
+        </div>
+        <div id="customersTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- ── VENDOR MASTER ── -->
+    <div id="pg-vendors" class="page">
+      <div class="card">
+        <div class="card-header">
+          <h3>🏭 Supplier Master <span id="vendCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="vendHeaderActions"></div>
+        </div>
+        <div class="tbar">
+          <input class="srch" id="vendSrch" type="text" placeholder="🔍 Company name / location…" style="width:210px" oninput="renderVendorsTable()">
+          <select class="fsel" id="vendLoc" onchange="renderVendorsTable()"><option value="">All Locations</option></select>
+          <select class="fsel" id="vendDays" onchange="renderVendorsTable()"><option value="">Any Delivery Time</option>
+            <option value="7">≤ 7 days</option><option value="10">≤ 10 days</option><option value="14">≤ 14 days</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="clearVendFilters()">✕ Clear</button>
+        </div>
+        <div id="vendorsTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- ── TRANSPORTER MASTER ── -->
+    <div id="pg-transporters" class="page">
+      <div class="card">
+        <div class="card-header">
+          <h3>🚛 Transporter / Truck Vendor <span id="transporterCount" style="font-size:13px;font-weight:400;color:#64748b"></span></h3>
+          <div id="transporterHeaderActions"></div>
+        </div>
+        <div class="tbar">
+          <input class="srch" id="transporterSrch" type="text" placeholder="🔍 Name / city…" style="width:210px">
+          <select class="fsel" id="transporterTypeFilter">
+            <option value="">All Types</option>
+            <option value="Transporter">Transporter</option>
+            <option value="Truck Vendor">Truck Vendor</option>
+            <option value="Both">Both</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="renderTransportersTable()">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" onclick="clearTransporterFilters()">✕ Clear</button>
+        </div>
+        <div id="transportersTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- ── USERS ── -->
+    <div id="pg-users" class="page">
+      <div class="card">
+        <div class="card-header">
+          <h3>👤 User Management</h3>
+          <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ Add User</button>
+        </div>
+        <div class="tbar">
+          <input class="srch" id="userSrch" type="text" placeholder="🔍 Name / username…" style="width:210px">
+          <select class="fsel" id="userRole"><option value="">All Roles</option>
+            <option value="superadmin">Super Admin</option><option value="admin">Admin</option>
+            <option value="manager">Manager</option><option value="logistics">Logistics</option>
+            <option value="purchase">Purchase</option><option value="biller">Biller</option><option value="salesman">Salesman</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="renderUsersTable()">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" onclick="clearUserFilters()">✕ Clear</button>
+        </div>
+        <div id="usersTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- ── REPORTS ── -->
+    <div id="pg-reports" class="page">
+      <!-- ── Report Tab Bar ── -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <button id="rptTabBtn-overview"  onclick="_rptSwitchTab('overview')"  class="rpt-main-tab rpt-main-tab-active">📊 Overview</button>
+        <button id="rptTabBtn-transport" onclick="_rptSwitchTab('transport')" class="rpt-main-tab">🚛 Transporters</button>
+        <button id="rptTabBtn-sku"       onclick="_rptSwitchTab('sku')"       class="rpt-main-tab">📦 SKU Analytics</button>
+        <button id="rptTabBtn-supplier"  onclick="_rptSwitchTab('supplier')"  class="rpt-main-tab">🏭 Suppliers</button>
+        <button id="rptTabBtn-customer"  onclick="_rptSwitchTab('customer')"  class="rpt-main-tab">🧑 Customers</button>
+      </div>
+
+      <!-- ── OVERVIEW TAB ── -->
+      <div id="rptTab-overview">
+        <!-- Date range + period filter -->
+        <div class="card" style="margin-bottom:14px;padding:14px 20px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:700;color:#1e293b">📅 Period:</span>
+            <div class="rpt-period-btns">
+              <button class="rpt-period-btn active" onclick="_rptSetPeriod(7)">7 Days</button>
+              <button class="rpt-period-btn" onclick="_rptSetPeriod(30)">30 Days</button>
+              <button class="rpt-period-btn" onclick="_rptSetPeriod(90)">90 Days</button>
+              <button class="rpt-period-btn" onclick="_rptSetPeriod(0)">All Time</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="date" id="rptFrom" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:4px 8px;font-size:12px" onchange="renderReports()">
+              <span style="font-size:12px;color:#64748b">to</span>
+              <input type="date" id="rptTo" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:4px 8px;font-size:12px" onchange="renderReports()">
+            </div>
+            <button onclick="exportReportsExcel()" style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📥 Export Excel</button>
+          </div>
+        </div>
+        <div class="rpt-kpi-grid" id="rptKpiGrid">
+          <div class="rpt-kpi"><div class="val" id="rptTotal">0</div><div class="lbl">Total Orders</div></div>
+          <div class="rpt-kpi"><div class="val" id="rptBilled" style="color:#16a34a">0</div><div class="lbl">Billed</div></div>
+          <div class="rpt-kpi"><div class="val" id="rptPending" style="color:#f59e0b">0</div><div class="lbl">In Pipeline</div></div>
+          <div class="rpt-kpi"><div class="val" id="rptOverdue" style="color:#ef4444">0</div><div class="lbl">Overdue</div></div>
+          <div class="rpt-kpi"><div class="val" id="rptAvgFulfill" style="color:#8b5cf6">—</div><div class="lbl">Avg Fulfill Days</div></div>
+          <div class="rpt-kpi"><div class="val" id="rptCancelled" style="color:#94a3b8">0</div><div class="lbl">Cancelled</div></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-header"><h3>⏱ Order Aging (days since ordered)</h3></div>
+          <div style="padding:16px 20px" id="rptAging"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div class="card">
+            <div class="card-header"><h3>📊 Orders by Status</h3></div>
+            <div style="padding:16px 20px" id="rptByStatus"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>📈 Orders Over Time (monthly)</h3></div>
+            <div style="padding:16px 20px"><canvas id="rptTrendChart" height="180"></canvas></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="card">
+            <div class="card-header"><h3>🏆 Top Customers by Orders</h3></div>
+            <div style="padding:16px 20px" id="rptByCust"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>🏭 Top Suppliers by Orders</h3></div>
+            <div style="padding:16px 20px" id="rptByVend"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TRANSPORTER ANALYTICS TAB ── -->
+      <div id="rptTab-transport" style="display:none">
+        <div id="rptTransportContent"></div>
+      </div>
+
+      <!-- ── SKU ANALYTICS TAB ── -->
+      <div id="rptTab-sku" style="display:none">
+        <div id="rptSkuContent"></div>
+      </div>
+
+      <!-- ── SUPPLIER ANALYTICS TAB ── -->
+      <div id="rptTab-supplier" style="display:none">
+        <div id="rptSupplierContent"></div>
+      </div>
+
+      <!-- ── CUSTOMER ANALYTICS TAB ── -->
+      <div id="rptTab-customer" style="display:none">
+        <div id="rptCustomerContent"></div>
+      </div>
+    </div>
+
+    <!-- ── VENDOR PO ── -->
+    <div id="pg-vendorpo" class="page">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
+            <h3>📤 Supplier Purchase Orders</h3>
+            <div style="font-size:12px;color:#64748b;margin-top:3px">Manage supplier orders — Approved &amp; PO Raised</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="vpoApprovedCount" style="background:#0ea5e922;color:#0ea5e9;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px"></span>
+            <span id="vpoRaisedCount" style="background:#16a34a22;color:#16a34a;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px"></span>
+            
+            <button class="btn btn-success btn-sm" onclick="generateVendorPOExcel()">📊 Download PO Excel</button>
+          </div>
+        </div>
+        <!-- Tabs -->
+        <div style="padding:0 20px 14px;display:flex;gap:6px">
+          <button id="vpo-tab-approved" class="be-tab be-tab-active" onclick="vpoTab('approved')">📤 Approved <span id="vpoTabApprovedBadge" style="background:#0ea5e9;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
+          <button id="vpo-tab-raised" class="be-tab" onclick="vpoTab('raised')">✅ PO Raised <span id="vpoTabRaisedBadge" style="background:#16a34a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
+        </div>
+      </div>
+      <!-- Approved tab search bar -->
+      <div id="vpoApprovedSearch" style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🔍</span>
+        <input id="vpoSearch" type="text" placeholder="Search supplier, customer, product, DON…"
+          style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent"
+          oninput="renderVendorPO()">
+        <button onclick="document.getElementById('vpoSearch').value='';renderVendorPO()"
+          style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px" title="Clear">✕</button>
+      </div>
+      <div id="vendorPOList"></div>
+      <!-- PO Raised search bar + list -->
+      <div id="poRaisedSection" style="display:none">
+        <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">🔍</span>
+          <input id="porSearch" type="text" placeholder="Search SPO, supplier, customer, product, DON…"
+            style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent"
+            oninput="renderPORaised()">
+          <button onclick="document.getElementById('porSearch').value='';renderPORaised()"
+            style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px"
+            title="Clear search">✕</button>
+        </div>
+        <div id="poRaisedList"></div>
+      </div>
+    </div>
+
+    <!-- ── MARK IN TRANSIT ── -->
+    <div id="pg-intransit" class="page">
+      <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🔍</span>
+        <input id="mitSearch" type="text" placeholder="Search SPO, supplier, customer, product, DON…"
+          style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent"
+          oninput="renderMarkInTransit()">
+        <button onclick="document.getElementById('mitSearch').value='';renderMarkInTransit()"
+          style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px"
+          title="Clear search">✕</button>
+      </div>
+      <!-- Bulk-LR selection action bar (appears when rows are checked) -->
+      <div id="bulkLRBar" style="display:none;position:sticky;top:0;z-index:200;background:linear-gradient(135deg,#1e3a5f,#1a56a0);color:#fff;border-radius:12px;padding:12px 18px;margin-bottom:12px;box-shadow:0 4px 16px rgba(30,58,95,.35);display:none;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <span style="font-size:20px">📦</span>
+          <div>
+            <div style="font-size:14px;font-weight:800" id="bulkLRCountLabel">0 orders selected</div>
+            <div style="font-size:11px;opacity:.8" id="bulkLRVpoLabel">across multiple SPOs</div>
+          </div>
+        </div>
+        <button onclick="openBulkLRTransitModal()"
+          style="background:#f97316;color:#fff;border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap">
+          🚚 Dispatch All on One LR
+        </button>
+        <button onclick="clearBulkLRSel()"
+          style="background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.25);border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+          ✕ Clear Selection
+        </button>
+      </div>
+      <div id="mitList"></div>
+    </div>
+
+    <!-- ── PENDING DONs & SPOs ── -->
+    <div id="pg-pending" class="page">
+      <!-- Tab bar + search -->
+      <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:6px" id="pendingTabBar">
+          <button id="pendingTab-don" onclick="_switchPendingTab('don')"
+            style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:#1a73e8;color:#fff;transition:all .15s">📦 Pending DONs</button>
+          <button id="pendingTab-vpo" onclick="_switchPendingTab('vpo')"
+            style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .15s">📄 Pending SPOs</button>
+          <button id="pendingTab-supplier" onclick="_switchPendingTab('supplier')"
+            style="padding:6px 18px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;transition:all .15s">🏭 By Supplier</button>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;gap:6px;min-width:180px;background:#f8fafc;border-radius:8px;padding:6px 12px;border:1px solid #e2e8f0">
+          <span style="color:#94a3b8">🔍</span>
+          <input id="pendingSrch" type="text" placeholder="Search DON / SPO, customer, supplier, product…"
+            style="border:none;outline:none;font-size:13px;color:#1e293b;background:transparent;flex:1"
+            oninput="renderPendingPage()">
+          <button onclick="document.getElementById('pendingSrch').value='';renderPendingPage()"
+            style="background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0 2px">✕</button>
+        </div>
+        <div id="pendingPageSubtitle" style="font-size:12px;color:#64748b;font-weight:600;white-space:nowrap"></div>
+        <div id="pendingStageFilters" style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:2px"></div>
+      </div>
+      <!-- Two-column layout: DON/SPO list + Dealer Summary sidebar -->
+      <div style="display:flex;gap:14px;align-items:flex-start">
+        <div id="pendingPageList" style="flex:1;min-width:0"></div>
+
+      </div>
+    </div>
+
+    <!-- ── PHASE 2: SHIPMENTS (by LR/Invoice) ── -->
+    <div id="pg-shipments" class="page">
+      <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">🔍</span>
+        <input id="shipSearch" type="text" placeholder="Search LR no, transporter, invoice, customer, SKU…"
+          style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent;min-width:160px"
+          oninput="renderShipments()">
+        <button onclick="document.getElementById('shipSearch').value='';renderShipments()"
+          style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px">✕</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="shipStatusFilters">
+          <button onclick="_shipFilterStatus('')" id="shipF-all" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">All</button>
+          <button onclick="_shipFilterStatus('In Transit')" id="shipF-intransit" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🚚 In Transit</button>
+          <button onclick="_shipFilterStatus('At Transporter')" id="shipF-attransporter" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🏢 At Transporter</button>
+          <button onclick="_shipFilterStatus('Warehouse')" id="shipF-warehouse" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">🏪 Warehouse</button>
+        </div>
+      </div>
+      <div id="shipList"></div>
+    </div>
+
+    <!-- ── PHASE 3: DELIVERIES (by DON) ── -->
+    <div id="pg-deliveries" class="page">
+      <div style="background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:18px">🔍</span>
+        <input id="delivSearch" type="text" placeholder="Search DON, customer, SKU, invoice…"
+          style="flex:1;border:none;outline:none;font-size:14px;color:#1e293b;background:transparent;min-width:160px"
+          oninput="renderDeliveries()">
+        <button onclick="document.getElementById('delivSearch').value='';renderDeliveries()"
+          style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px">✕</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="_delivFilterStatus('GRN')" id="delivF-grn" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">📋 GRN</button>
+          <button onclick="_delivFilterStatus('Purchased')" id="delivF-purchased" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#1e293b;color:#fff;border:none">📦 Purchased</button>
+          <button onclick="_delivFilterStatus('Billed')" id="delivF-billed" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">✅ Billed</button>
+          <button onclick="_delivFilterStatus('')" id="delivF-all" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">All</button>
+        </div>
+      </div>
+      <div id="delivList"></div>
+    </div>
+
+    <!-- ── CUSTOMER SEARCH ── -->
+    <div id="pg-custsearch" class="page">
+      <div class="card" style="margin-bottom:16px">
+        <div style="padding:18px 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <input class="srch" id="csQuery" type="text" placeholder="🔍 Type customer name…" style="width:300px;font-size:15px;padding:10px 14px" oninput="renderCustSearch()">
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('csQuery').value='';renderCustSearch()">✕ Clear</button>
+        </div>
+      </div>
+      <div id="csResults"></div>
+    </div>
+
+    <!-- ── ROLES ── -->
+    <div id="pg-roles" class="page">
+      <div id="rolesPageContent"></div>
+    </div>
+
+    <!-- ── DEPARTMENTS ── -->
+    <div id="pg-departments" class="page">
+      <div id="deptsPageContent"></div>
+    </div>
+
+    <!-- ── BACKEND ── -->
+    <div id="pg-backend" class="page">
+      <div style="background:#0f172a;border-radius:14px;padding:20px 24px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+        <div style="font-size:36px">⚙️</div>
+        <div>
+          <div style="font-size:20px;font-weight:800;color:#fff">System Backend</div>
+          <div style="font-size:13px;color:#94a3b8;margin-top:2px">Full control panel · Super Admin only · All actions logged</div>
+        </div>
+        <div id="beStorageBar" style="margin-left:auto;text-align:right"></div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:18px;background:#fff;border-radius:10px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+        <button id="be-tab-overview"   onclick="beTab('overview')"   class="be-tab be-tab-active">📊 Overview</button>
+        <button id="be-tab-auditlog"   onclick="beTab('auditlog')"   class="be-tab">📋 Activity Log</button>
+        <button id="be-tab-counters"   onclick="beTab('counters')"   class="be-tab">🔢 Counters</button>
+        <button id="be-tab-data"       onclick="beTab('data')"       class="be-tab">💾 Data Control</button>
+        <button id="be-tab-settings"   onclick="beTab('settings')"   class="be-tab">🛠 Settings</button>
+        <button id="be-tab-labels"     onclick="beTab('labels')"     class="be-tab">🏷 Labels</button>
+        <button id="be-tab-perms"      onclick="beTab('perms')"      class="be-tab">🔐 Permissions</button>
+      </div>
+      <div id="be-content"></div>
+    </div>
+
+  </div><!-- /pcontent -->
+</div><!-- /main -->
+</div><!-- /layout -->
+</div><!-- /app -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- GRN Modal -->
+<div id="grnModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:18px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:520px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#d97706,#b45309);padding:18px 22px 16px;border-radius:18px 18px 0 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#fff">📋 Raise Goods Receipt Note</div>
+        <div style="font-size:12px;color:#fde68a;margin-top:2px">Verify received goods match invoice before marking GRN</div>
+      </div>
+      <button onclick="closeGrnModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <!-- Order Summary (filled by JS) -->
+    <div id="grnOrderSummary" style="padding:16px 22px 0"></div>
+    <!-- GRN Form -->
+    <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:14px">
+      <!-- Received / Damaged qty reconcile (single-order mode) -->
+      <div id="grnQtyBlock">
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Received Qty <span style="color:#dc2626">*</span></label>
+            <input id="grnReceivedQty" type="number" min="0" oninput="_grnQtyReconcile()"
+              style="width:100%;padding:10px 13px;border:2px solid #16a34a;border-radius:9px;font-size:14px;font-weight:700;color:#15803d;background:#f0fdf4;outline:none;box-sizing:border-box">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Damaged Qty</label>
+            <input id="grnDamagedQty" type="number" min="0" value="0" oninput="_grnQtyReconcile()"
+              style="width:100%;padding:10px 13px;border:2px solid #f59e0b;border-radius:9px;font-size:14px;font-weight:700;color:#b45309;background:#fffbeb;outline:none;box-sizing:border-box">
+          </div>
+        </div>
+        <div id="grnQtyHint" style="margin-top:8px;font-size:12px;font-weight:700"></div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">GRN Number <span style="color:#dc2626">*</span> <span style="color:#dc2626;font-size:10px;font-weight:600;text-transform:none">(mandatory)</span></label>
+        <input id="grnNumberInput" type="text" placeholder="Enter GRN number from your document"
+          style="width:100%;padding:10px 13px;border:2px solid #d97706;border-radius:9px;font-size:14px;font-weight:700;font-family:monospace;color:#92400e;background:#fffbeb;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Date of GRN <span style="color:#dc2626">*</span></label>
+        <input id="grnDateInput" type="date"
+          style="width:100%;padding:10px 13px;border:2px solid #d97706;border-radius:9px;font-size:14px;font-weight:600;color:#92400e;background:#fffbeb;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">Remarks / Notes (optional)</label>
+        <textarea id="grnRemarks" rows="2" placeholder="Any discrepancies, short-shipment notes, condition of goods…" style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;resize:none;box-sizing:border-box;outline:none;font-family:inherit"></textarea>
+      </div>
+      <label id="grnVerifyLabel" style="display:flex;align-items:flex-start;gap:9px;padding:11px 13px;background:#f0fdf4;border:1.5px solid #16a34a;border-radius:9px;cursor:pointer">
+        <input type="checkbox" id="grnVerifyCheck" style="width:17px;height:17px;accent-color:#16a34a;cursor:pointer;flex-shrink:0;margin-top:1px">
+        <span style="font-size:12px;font-weight:600;color:#166534;line-height:1.4">I have physically verified the received &amp; damaged quantities for all ticked orders, and they match this GRN.</span>
+      </label>
+      <div style="display:flex;gap:10px">
+        <button onclick="confirmGrn()" style="flex:1;padding:12px;background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer">📋 Confirm GRN & Move to GRN Status</button>
+        <button onclick="closeGrnModal()" style="padding:12px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Purchase Confirmation Modal (GRN → Purchased) -->
+<div id="purchaseConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:18px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:460px;max-width:95vw">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0891b2,#06b6d4);padding:18px 22px 16px;border-radius:18px 18px 0 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#fff">💰 Confirm Purchased</div>
+        <div id="purchConfirmDonLabel" style="font-size:12px;color:#bae6fd;margin-top:3px;font-family:monospace"></div>
+      </div>
+      <button onclick="closePurchaseConfirmModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <!-- Form -->
+    <div style="padding:22px;display:flex;flex-direction:column;gap:16px">
+      <p style="margin:0;font-size:13px;color:#475569;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 13px">
+        Enter the <strong>Purchase Voucher No</strong> and GRN date before marking this order as Purchased.
+      </p>
+      <!-- Purchase Voucher No -->
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">
+          Purchase Voucher No <span style="color:#dc2626">*</span>
+        </label>
+        <input id="purchVoucherNoInput" type="text" placeholder="e.g. PV-2025-0001"
+          style="width:100%;padding:10px 13px;border:2px solid #0891b2;border-radius:9px;font-size:14px;font-weight:700;font-family:monospace;color:#0c4a6e;background:#f0f9ff;outline:none;box-sizing:border-box">
+      </div>
+      <!-- Physical GRN No (kept as hidden field for backward compat, mapped to same value) -->
+      <input id="physGrnNoInput" type="hidden">
+      <!-- Date of Purchase -->
+      <div>
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;display:block;margin-bottom:6px">
+          Date of Purchase <span style="color:#dc2626">*</span>
+        </label>
+        <input id="physGrnDateInput" type="date"
+          style="width:100%;padding:10px 13px;border:2px solid #0891b2;border-radius:9px;font-size:14px;font-weight:600;color:#0c4a6e;background:#f0f9ff;outline:none;box-sizing:border-box">
+      </div>
+      <!-- Actions -->
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="confirmMarkPurchased()"
+          style="flex:1;padding:12px;background:linear-gradient(135deg,#0891b2,#06b6d4);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+          💰 Confirm & Mark Purchased
+        </button>
+        <button onclick="closePurchaseConfirmModal()"
+          style="padding:12px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order Modal -->
+<div class="overlay" id="orderModal">
+<div class="modal">
+  <div class="mhdr"><h3 id="orderModalTitle">New Order</h3><button class="mclose" onclick="closeModal('orderModal')">✕</button></div>
+  <div class="mbody">
+    <!-- Stock Order Toggle -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:#f0fdfa;border:1.5px solid #99f6e4;transition:all .2s" id="stockOrderBanner">
+      <span style="font-size:20px">📦</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:#0f766e">Stock Order</div>
+        <div style="font-size:11px;color:#5eead4">No specific customer — ordering for inventory</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <div style="position:relative;display:inline-block;width:40px;height:22px">
+          <input type="checkbox" id="omIsStock" style="opacity:0;width:0;height:0;position:absolute" onchange="_toggleStockMode(this.checked)">
+          <span id="omIsStockSlider" style="position:absolute;cursor:pointer;inset:0;background:#d1d5db;border-radius:22px;transition:.2s"></span>
+          <span id="omIsStockKnob" style="position:absolute;content:'';width:16px;height:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)"></span>
+        </div>
+      </label>
+    </div>
+    <!-- Customer + Order Date (first row) -->
+    <div class="frow">
+      <div class="fg" style="position:relative" id="omCustWrap">
+        <label>Customer *</label>
+        <input id="omCust" type="text" autocomplete="off" placeholder="Type to search customer…" oninput="acShow('omCust',this.value,'cust')" onkeydown="acKey(event,'omCust','cust')" onblur="setTimeout(()=>acHide('omCust'),180)">
+        <input id="omCustVal" type="hidden">
+        <div id="omCustDrop" style="display:none;position:absolute;z-index:9999;left:0;right:0;top:100%;background:#fff;border:1.5px solid #d1d5db;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:200px;overflow-y:auto;margin-top:2px"></div>
+        <div id="omCustNote" style="display:none;margin-top:4px;font-size:11px;color:#b45309;font-weight:600;background:#fef9c3;border-radius:6px;padding:4px 8px"></div>
+        <div id="omDupWarn" class="dup-warn"></div>
+      </div>
+      <div class="fg" style="flex:0 0 160px">
+        <label>Order Date *</label>
+        <input id="omDate" type="date">
+      </div>
+    </div>
+    <!-- Vendor (hidden, auto-filled) -->
+    <div class="fg" id="omVendWrap" style="display:none">
+      <label>Supplier *</label>
+      <select id="omVend" required><option value="">— Select Vendor —</option></select>
+    </div>
+    <!-- Dynamic product lines (Product + Qty per row) -->
+    <div id="omProductLines" style="margin-bottom:4px"></div>
+    <!-- Biller + Sales Exec (auto, read-only) -->
+    <div class="frow">
+      <div class="fg"><label>Biller</label><input id="omBillerDisp" type="text" readonly tabindex="-1" placeholder="Auto-assigned" style="background:#f8fafc;color:#374151;border-color:#e2e8f0"></div>
+      <div class="fg"><label>Sales Executive</label><input id="omSalesDisp" type="text" readonly tabindex="-1" placeholder="Auto-assigned" style="background:#f8fafc;color:#374151;border-color:#e2e8f0"></div>
+    </div>
+    <!-- PO row -->
+    <div class="frow">
+      <div class="fg"><label>Customer Ref <span style="font-weight:400;font-size:11px;color:#64748b">(PO no. issued by dealer / name to write on roll)</span></label><input id="omPo" type="text" placeholder="Customer ref or PO no." onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('omRemark').focus();}"></div>
+    </div>
+    <div class="fg"><label>Remarks / Notes <span style="font-weight:400;font-size:11px;color:#64748b">(added as first comment on the order)</span></label>
+      <div style="position:relative">
+        <textarea id="omRemark" rows="2" placeholder="Any notes or remarks…"
+          style="width:100%;padding:8px 38px 8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;resize:vertical;font-family:inherit;transition:border .2s;box-sizing:border-box"
+          onfocus="this.style.borderColor='#1a73e8'" onblur="this.style.borderColor='#d1d5db'"
+          onkeydown="if(event.key==='Enter'&&!this.value.trim()){event.preventDefault();document.querySelector('#orderModal .btn-primary').focus();}"></textarea>
+        <button
+          onclick="_micBtnClick('omRemark',this)"
+          onmousedown="_micBtnDown('omRemark',this,event)" onmouseup="_micBtnUp()" onmouseleave="_micBtnUp()"
+          ontouchstart="_micBtnDown('omRemark',this,event)" ontouchend="_micBtnUp()"
+          title="Mic — voice input for remarks"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .2s;font-size:13px;line-height:1;user-select:none;-webkit-user-select:none">
+          <span id="omRemarkMicIcon">🎤</span>
+        </button>
+      </div>
+      <div id="omRemarkVoiceWarning" style="display:none;margin-top:4px;padding:5px 10px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:7px;font-size:11px;color:#92400e;font-weight:600;align-items:center;gap:5px">
+        ⚠️ Voice transcription — please review before saving
+      </div></div>
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('orderModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveOrder()">💾 Save Order</button>
+  </div>
+</div>
+</div>
+
+<!-- Status Update Modal -->
+
+<!-- View Order Modal -->
+<div class="overlay" id="viewModal">
+<div class="modal">
+  <div class="mhdr"><h3>Order Details</h3><button class="mclose" onclick="closeModal('viewModal')">✕</button></div>
+  <div class="mbody" id="viewModalBody"></div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('viewModal')">Close</button>
+  </div>
+</div>
+</div>
+
+<!-- Comments Modal -->
+<div class="overlay" id="commentsModal">
+<div class="modal" style="max-width:480px">
+  <div class="mhdr">
+    <h3>💬 <span id="cmtModalTitle">Order Comments</span></h3>
+    <button class="mclose" onclick="closeModal('commentsModal')">✕</button>
+  </div>
+  <div class="mbody" style="padding:0">
+    <!-- Thread -->
+    <div id="cmtThread" style="max-height:340px;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px"></div>
+    <!-- Input -->
+    <div style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#f8fafc">
+      <div style="position:relative">
+        <textarea id="cmtInput" rows="2" placeholder="Type a comment…"
+          style="width:100%;padding:9px 38px 9px 12px;border:1.5px solid #d1d5db;border-radius:10px;font-size:13px;font-family:inherit;resize:none;outline:none;box-sizing:border-box;transition:border .2s"
+          onfocus="this.style.borderColor='#1a73e8'" onblur="this.style.borderColor='#d1d5db'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitCmtModal();}"></textarea>
+        <button id="cmtMicBtn"
+          onclick="_micBtnClick('cmtInput',this)"
+          onmousedown="_micBtnDown('cmtInput',this,event)" onmouseup="_micBtnUp()" onmouseleave="_micBtnUp()"
+          ontouchstart="_micBtnDown('cmtInput',this,event)" ontouchend="_micBtnUp()"
+          title="Mic — click to start/stop"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .2s;font-size:13px;line-height:1;user-select:none;-webkit-user-select:none">
+          <span id="cmtMicIcon">🎤</span>
+        </button>
+      </div>
+      <!-- Voice review warning — shown after stopping recording -->
+      <div id="cmtVoiceWarning" style="display:none;margin-top:6px;padding:6px 10px;background:#fffbeb;border:1.5px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;font-weight:600;display:none;align-items:center;gap:6px">
+        ⚠️ Voice transcription — please review before sending
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <button onclick="submitCmtModal()" class="btn btn-primary btn-sm">Send ↵</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Product Modal -->
+<div class="overlay" id="productModal">
+<div class="modal modal-sm">
+  <div class="mhdr"><h3 id="prodModalTitle">Add Product</h3><button class="mclose" onclick="closeModal('productModal')">✕</button></div>
+  <div class="mbody" style="padding:18px;display:flex;flex-direction:column;gap:0">
+
+    <!-- ── Section: Basic Info ── -->
+    <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Basic Info</div>
+
+    <div class="frow" style="gap:10px;margin-bottom:14px">
+      <div class="fg" style="flex:1">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">PRODUCT CODE <span style="color:#e53e3e">*</span></label>
+        <input id="pmCode" type="text" placeholder="e.g. EN 1006" style="width:100%">
+      </div>
+      <div class="fg" style="flex:1.6">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">PRODUCT NAME <span style="font-size:10px;font-weight:400;color:#94a3b8">(optional)</span></label>
+        <input id="pmName" type="text" placeholder="Full product name (optional)" style="width:100%">
+      </div>
+    </div>
+
+    <div class="frow" style="gap:10px;margin-bottom:14px">
+      <div class="fg" style="flex:1">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">CATEGORY</label>
+        <input id="pmCat" type="text" list="pmCatList" placeholder="Plywood, MDF, Veneer…" style="width:100%">
+        <datalist id="pmCatList"></datalist>
+      </div>
+      <div class="fg" style="flex:1">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">UNIT OF MEASURE</label>
+        <input id="pmUnit" type="text" list="pmUnitList" placeholder="Sheet / Sq.ft / Roll…" style="width:100%">
+        <datalist id="pmUnitList">
+          <option value="Sheet">
+          <option value="Sq.ft">
+          <option value="Roll">
+          <option value="Piece">
+          <option value="Meter">
+          <option value="Box">
+          <option value="Nos">
+        </datalist>
+      </div>
+    </div>
+
+    <div class="fg" style="margin-bottom:16px">
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">DEFAULT SUPPLIER</label>
+      <select id="pmVend" style="width:100%"><option value="">— Select supplier —</option></select>
+    </div>
+
+    <!-- ── Divider ── -->
+    <div style="border-top:1px dashed #e2e8f0;margin-bottom:14px"></div>
+
+    <!-- ── Section: Product Hierarchy ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase">Product Hierarchy</div>
+      <div style="display:flex;gap:6px">
+        <label id="pmTypeParentLbl" onclick="_pmSetType('parent')" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid #1a73e8;background:#eff6ff;font-size:12px;font-weight:700;color:#1a73e8;cursor:pointer">
+          <input type="radio" name="pmType" value="parent" checked style="accent-color:#1a73e8;width:12px;height:12px"> Parent
+        </label>
+        <label id="pmTypeChildLbl" onclick="_pmSetType('child')" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid #e2e8f0;background:#fff;font-size:12px;font-weight:700;color:#64748b;cursor:pointer">
+          <input type="radio" name="pmType" value="child" style="accent-color:#f59e0b;width:12px;height:12px"> Child of…
+        </label>
+      </div>
+    </div>
+
+    <!-- shown only when "Child of…" selected -->
+    <div id="pmChildFields" style="display:none;background:#fffbeb;border:1.5px solid #fde68a;border-radius:9px;padding:12px 14px">
+      <div class="frow" style="gap:10px">
+        <div class="fg" style="flex:1.4">
+          <label style="font-size:11px;font-weight:700;color:#92400e;display:block;margin-bottom:4px">PARENT PRODUCT CODE</label>
+          <select id="pmParent" style="width:100%"><option value="">— Select parent —</option></select>
+        </div>
+        <div class="fg" style="flex:1">
+          <label style="font-size:11px;font-weight:700;color:#92400e;display:block;margin-bottom:4px">SHORT NAME / ALIAS <span style="font-size:10px;font-weight:400;color:#b45309">(optional)</span></label>
+          <input id="pmParentAlias" type="text" placeholder="e.g. GR 523, EN 100" style="width:100%">
+        </div>
+      </div>
+      <div style="font-size:11px;color:#b45309;margin-top:7px;opacity:.85">This product will be grouped under the selected parent in orders and reports.</div>
+    </div>
+
+    <!-- shown when "Parent" selected -->
+    <div id="pmParentNote" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:9px;padding:10px 14px;font-size:12px;color:#15803d">
+      ✅ This is a <strong>standalone / parent</strong> product. Child variants (sizes, grades) can be linked to it later.
+    </div>
+
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveProduct()">💾 Save Product</button>
+  </div>
+</div>
+</div>
+
+<!-- Customer Modal -->
+<div class="overlay" id="customerModal">
+<div class="modal modal-sm">
+  <div class="mhdr"><h3 id="custModalTitle">Add Customer</h3><button class="mclose" onclick="closeModal('customerModal')">✕</button></div>
+  <div class="mbody">
+    <div class="fg"><label>Company Name *</label><input id="cmName" type="text" placeholder="Company name"></div>
+    <div class="fg"><label>Contact Person</label><input id="cmContact" type="text" placeholder="Name"></div>
+    <div class="frow">
+      <div class="fg"><label>Phone</label><input id="cmPhone" type="text" placeholder="Phone number"></div>
+      <div class="fg"><label>City</label><input id="cmCity" type="text" placeholder="City"></div>
+    </div>
+    <div class="fg"><label>WhatsApp No <span style="font-weight:400;font-size:11px;color:#64748b">(with country code, e.g. 919876543210)</span></label><input id="cmWa" type="text" placeholder="e.g. 919876543210"></div>
+    <div class="fg"><label>Address</label><input id="cmAddr" type="text" placeholder="Address"></div>
+    <div class="fg"><label>Email</label><input id="cmEmail" type="email" placeholder="Email"></div>
+    <!-- ── Assignment ── -->
+    <div style="border-top:2px solid #e2e8f0;margin:14px 0 10px;padding-top:12px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">👤 Account Assignment</div>
+      <div class="frow">
+        <div class="fg">
+          <label>Sales Executive</label>
+          <select id="cmSalesExec" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+            <option value="">— Not assigned —</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Billing Person</label>
+          <select id="cmBiller" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+            <option value="">— Not assigned —</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Manager</label>
+        <select id="cmManager" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+          <option value="">— Not assigned —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('customerModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveCustomer()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- Vendor Modal -->
+<div class="overlay" id="vendorModal">
+<div class="modal modal-sm">
+  <div class="mhdr"><h3 id="vendModalTitle">Add Company</h3><button class="mclose" onclick="closeModal('vendorModal')">✕</button></div>
+  <div class="mbody">
+    <div class="fg"><label>Company Name *</label><input id="vmName" type="text" placeholder="Company / supplier name"></div>
+    <div class="frow">
+      <div class="fg"><label>Location / City</label><input id="vmLoc" type="text" placeholder="City / State"></div>
+      <div class="fg"><label>Delivery Days *</label><input id="vmDays" type="number" min="1" placeholder="Avg. delivery days"></div>
+    </div>
+    <div class="fg"><label>Contact Person</label><input id="vmContact" type="text" placeholder="Name"></div>
+    <div class="frow">
+      <div class="fg"><label>Phone</label><input id="vmPhone" type="text" placeholder="Phone number"></div>
+      <div class="fg"><label>WhatsApp No <span style="font-weight:400;font-size:11px;color:#64748b">(with country code, e.g. 919876543210)</span></label><input id="vmWa" type="text" placeholder="e.g. 919876543210"></div>
+    </div>
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('vendorModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveVendor()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- Transporter Modal -->
+<div class="overlay" id="transporterModal">
+<div class="modal modal-sm">
+  <div class="mhdr"><h3 id="transporterModalTitle">Add Transporter</h3><button class="mclose" onclick="closeModal('transporterModal')">✕</button></div>
+  <div class="mbody">
+    <div class="fg"><label>Name *</label><input id="tmName" type="text" placeholder="Transporter / truck vendor name"></div>
+    <div class="frow">
+      <div class="fg"><label>Type *</label>
+        <select id="tmType">
+          <option value="">Select type…</option>
+          <option value="Transporter">Transporter</option>
+          <option value="Truck Vendor">Truck Vendor</option>
+          <option value="Both">Both</option>
+        </select>
+      </div>
+      <div class="fg"><label>Location / City</label><input id="tmLocation" type="text" placeholder="City / State"></div>
+    </div>
+    <div class="fg"><label>Contact Person</label><input id="tmContact" type="text" placeholder="Name"></div>
+    <div class="frow">
+      <div class="fg"><label>Phone</label><input id="tmPhone" type="text" placeholder="Phone number"></div>
+      <div class="fg"><label>WhatsApp <span style="font-weight:400;font-size:11px;color:#64748b">(with country code)</span></label><input id="tmWa" type="text" placeholder="e.g. 919876543210"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Transit Days <span style="font-weight:400;font-size:11px;color:#64748b">(days to deliver after booking)</span></label><input id="tmTransitDays" type="number" min="1" max="60" placeholder="e.g. 4"></div>
+      <div class="fg"><label>Notes</label><input id="tmNotes" type="text" placeholder="Route, vehicle type, etc."></div>
+    </div>
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('transporterModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveTransporter()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- User Modal -->
+<div class="overlay" id="userModal">
+<div class="modal modal-sm">
+  <div class="mhdr"><h3 id="userModalTitle">Add User</h3><button class="mclose" onclick="closeModal('userModal')">✕</button></div>
+  <div class="mbody">
+    <div class="fg"><label>Full Name *</label><input id="umName" type="text" placeholder="Full name"></div>
+    <div class="fg"><label>Username *</label><input id="umUser" type="text" placeholder="Login username"></div>
+    <div class="fg"><label>Password *</label><input id="umPwd" type="password" placeholder="Password"></div>
+    <div class="fg"><label>Role *</label>
+      <select id="umRole" onchange="_umRoleChanged()">
+        <option value="superadmin">Super Admin</option>
+        <option value="admin">Admin</option>
+        <option value="manager">Manager — Approve, PO, Transit</option>
+        <option value="teamlead">Team Lead — Supervises team</option>
+        <option value="logistics">Logistics — Transit updates</option>
+        <option value="purchase">Purchase — Warehouse → Purchased</option>
+        <option value="biller">Biller — Create orders, Invoice</option>
+        <option value="salesman">Salesman — View only</option>
+      </select></div>
+    <div class="frow">
+      <div class="fg"><label>Department</label>
+        <select id="umDept" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+          <option value="">— No Department —</option>
+        </select>
+      </div>
+      <div class="fg" id="umTeamLeadWrap"><label>Team Lead</label>
+        <select id="umTeamLead" style="padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;width:100%;font-size:13px">
+          <option value="">— No Team Lead —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="mftr">
+    <button class="btn btn-outline" onclick="closeModal('userModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveUser()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- ETA Trail & Edit floating popups (appended to body, not inside table) -->
+<div id="etaTrailPopup" style="display:none;position:absolute;z-index:9999;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:12px 14px;min-width:240px;max-width:280px"></div>
+<div id="etaEditPopup" style="display:none;position:absolute;z-index:9999;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:12px 14px;width:200px"></div>
+
+<!-- Column Filter Popup -->
+<div id="colFilterPopup" style="display:none;position:fixed;z-index:9999;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);padding:12px 14px;min-width:200px">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px" id="cfpLabel">Filter</div>
+  <input id="cfpInput" type="text" placeholder="Type to filter…"
+    style="width:100%;padding:7px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:13px;outline:none;margin-bottom:8px"
+    onkeydown="if(event.key==='Enter')pinColFilter()" oninput="previewColFilter()">
+  <div style="display:flex;gap:6px">
+    <button onclick="pinColFilter()" style="flex:1;padding:6px;background:#1a73e8;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">📌 Pin</button>
+    <button onclick="clearColFilter()" style="padding:6px 10px;background:#f1f5f9;color:#64748b;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✕</button>
+  </div>
+</div>
+
+<!-- Transit Details Modal -->
+<div class="overlay" id="transitModal">
+<div class="modal" style="width:600px;max-height:92vh;display:flex;flex-direction:column;border-radius:14px">
+  <div class="mhdr">
+    <div>
+      <h3 style="font-size:14px;font-weight:800">🚚 Shipment Details</h3>
+      <div id="transitSubtitle" style="font-size:11px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <button class="mclose" onclick="closeModal('transitModal')">✕</button>
+  </div>
+
+  <div style="overflow-y:auto;flex:1;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+
+    <!-- ── Transport Details ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Mode *</div>
+        <div id="transitModeGroup" style="display:flex;gap:4px">
+          <label id="tmTransporter" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
+            <input type="radio" name="transitMode" value="Transporter" onchange="highlightTransitMode();_transitClearErr('transitModeGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🚛 Transporter
+          </label>
+          <label id="tmTruck" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
+            <input type="radio" name="transitMode" value="Truck" onchange="highlightTransitMode();_transitClearErr('transitModeGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🛻 Truck
+          </label>
+        </div>
+        <div id="err-transitModeGroup" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:3px"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Material Form *</div>
+        <div id="transitFormGroup" style="display:flex;gap:4px">
+          <label id="mfRoll" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
+            <input type="radio" name="materialForm" value="Roll" onchange="highlightMaterialForm();_transitClearErr('transitFormGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 🌀 Roll
+          </label>
+          <label id="mfFlat" style="flex:1;display:flex;align-items:center;gap:4px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">
+            <input type="radio" name="materialForm" value="Flat Sheet" onchange="highlightMaterialForm();_transitClearErr('transitFormGroup')" style="accent-color:#1a73e8;width:12px;height:12px"> 📋 Flat Sheet
+          </label>
+        </div>
+        <div id="err-transitFormGroup" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:3px"></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Transporter / Truck Vendor *</div>
+        <input id="transitVendorName" type="text" placeholder="e.g. Shree Transport…" style="font-size:12px;padding:6px 10px;width:100%" list="transitVendorList" autocomplete="off"
+          oninput="_transitClearErr('transitVendorName');_showTransitDaysHint(this.value)">
+        <datalist id="transitVendorList"></datalist>
+        <div id="transitDaysHint" style="display:flex;align-items:center;gap:8px;background:#fef3c7;border-radius:6px;padding:6px 10px;margin-top:6px;flex-wrap:nowrap;overflow:hidden">
+          <span style="font-size:12px;color:#92400e;white-space:nowrap">⏱</span>
+          <input id="transitDaysOverride" type="number" min="1" max="60" placeholder="—"
+            style="width:54px;padding:2px 6px;border:1.5px solid #f59e0b;border-radius:5px;font-size:13px;font-weight:800;color:#92400e;background:#fffbeb;text-align:center;outline:none;flex-shrink:0"
+            oninput="_syncTransitDaysFromDays()">
+          <span style="font-size:11px;color:#92400e;font-weight:700;white-space:nowrap">days</span>
+          <span style="color:#d97706;font-size:11px">|</span>
+          <div style="position:relative;flex-shrink:0;display:flex;align-items:center">
+            <input id="transitEtaDatePick" type="text" placeholder="DD/MM/YY" maxlength="8"
+              style="padding:2px 28px 2px 6px;border:1.5px solid #f59e0b;border-radius:5px;font-size:11px;font-weight:700;color:#92400e;background:#fffbeb;outline:none;width:72px;text-align:center;font-family:monospace"
+              oninput="_autoSlashDate(this);_syncTransitDaysFromDate()">
+            <input id="transitEtaDatePickHidden" type="date"
+              style="position:absolute;right:0;top:0;width:22px;height:100%;opacity:0;cursor:pointer;border:none;padding:0"
+              onchange="_transitCalPick(this.value)">
+            <span style="position:absolute;right:5px;font-size:13px;pointer-events:none;color:#b45309">📅</span>
+          </div>
+          <span id="transitEtaDayLabel" style="font-size:11px;font-weight:700;color:#b45309;white-space:nowrap"></span>
+        </div>
+        <div id="err-transitVendorName" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:3px"></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">LR No / Packing Slip No / Invoice No *</div>
+        <div style="display:flex;gap:6px">
+          <input id="transitLR" type="text" placeholder="LR no / Packing slip no / Invoice no…" style="font-size:12px;padding:6px 10px;flex:1;min-width:0"
+            oninput="_transitClearErr('transitLR')">
+          <div style="position:relative;display:flex;align-items:center;flex-shrink:0">
+            <input id="transitLRDate" type="text" placeholder="DD/MM" maxlength="5"
+              oninput="(function(el){let v=el.value.replace(/[^0-9]/g,'');if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2,4);el.value=v;})(this);_transitClearErr('transitLR')"
+              style="font-size:12px;padding:6px 28px 6px 8px;width:76px;text-align:center;font-family:monospace;font-weight:700;border:1.5px solid #e2e8f0;border-radius:8px;outline:none;background:#fff">
+            <input id="transitLRDateHidden" type="date"
+              style="position:absolute;right:0;top:0;width:24px;height:100%;opacity:0;cursor:pointer;border:none;padding:0"
+              onchange="_lrDateCalPick(this.value)">
+            <span style="position:absolute;right:6px;font-size:12px;pointer-events:none;color:#64748b">📅</span>
+          </div>
+        </div>
+        <div id="err-transitLR" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:3px"></div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Supplier Invoice No <span style="font-weight:400;color:#94a3b8">(optional)</span></div>
+        <input id="transitVendorInvoice" type="text" placeholder="e.g. INV-2024-001…" style="font-size:12px;padding:6px 10px;width:100%">
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Invoice Date <span style="font-weight:400;color:#94a3b8">(optional)</span></div>
+        <input id="transitVendorInvoiceDate" type="text" placeholder="DD/MM/YY" maxlength="8" oninput="_autoSlashDate(this)"
+          style="font-size:11px;padding:6px 8px;width:100%;text-align:center;font-family:monospace;font-weight:700">
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px">Notes <span style="font-weight:400;color:#94a3b8">(optional)</span></div>
+      <input id="transitNotes" type="text" placeholder="Any remarks…" style="font-size:12px;padding:6px 10px;width:100%">
+    </div>
+
+    <!-- ── Shipment Order Table ── -->
+    <div style="border-top:1px dashed #e2e8f0;padding-top:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.04em">Orders in this Shipment</div>
+        <div id="transitOrderCount" style="font-size:11px;color:#64748b"></div>
+      </div>
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;width:28px">
+                <input type="checkbox" id="transitSelectAll" onchange="_transitToggleAll(this.checked)" style="accent-color:#f97316;width:13px;height:13px">
+              </th>
+              <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">DON</th>
+              <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">Customer</th>
+              <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">Product</th>
+              <th style="padding:7px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">Ordered</th>
+              <th style="padding:7px 10px;text-align:center;font-size:10px;color:#f97316;font-weight:700;border-bottom:1px solid #e2e8f0">Shipping ✏️</th>
+            </tr>
+          </thead>
+          <tbody id="transitOrderRows"></tbody>
+        </table>
+      </div>
+
+      <!-- Add other ready orders -->
+      <div style="margin-top:10px">
+        <button onclick="_transitToggleExtra()" id="transitExtraBtn" style="width:100%;padding:7px 12px;border:1.5px dashed #d1d5db;border-radius:8px;background:#f8fafc;font-size:12px;color:#64748b;font-weight:600;cursor:pointer;text-align:left">
+          ➕ Add other ready orders to this shipment
+        </button>
+        <div id="transitExtraPanel" style="display:none;margin-top:8px;border:1.5px solid #fde68a;border-radius:8px;background:#fffbeb;overflow:hidden">
+          <div style="padding:8px 12px;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px">
+            <div style="font-size:11px;color:#92400e;font-weight:700;flex:1">Other PO Raised orders — check to include:</div>
+            <div style="position:relative;flex:0 0 200px">
+              <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none">🔍</span>
+              <input id="transitExtraSearch" type="text" placeholder="Search DON, customer, product…"
+                oninput="_transitFilterExtra(this.value)"
+                style="width:100%;padding:5px 8px 5px 26px;border:1.5px solid #fde68a;border-radius:6px;font-size:11px;background:#fff;outline:none;box-sizing:border-box">
+            </div>
+          </div>
+          <div id="transitExtraList" style="max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary bar (partial shipment) -->
+    <div id="transitSummaryBar" style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;padding:8px 12px;font-size:12px;color:#c2410c;font-weight:700;display:none"></div>
+
+    <!-- Surplus warning banner -->
+    <div id="transitSurplusWarning" style="display:none;background:#fef2f2;border:2px solid #ef4444;border-radius:10px;padding:12px 14px;margin-top:6px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <span style="font-size:20px;flex-shrink:0">⚠️</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:800;color:#b91c1c;margin-bottom:4px">Quantity Exceeds Order — Are you sure?</div>
+          <div id="transitSurplusDetail" style="font-size:12px;color:#dc2626;margin-bottom:10px;line-height:1.5"></div>
+          <div style="font-size:11px;color:#7f1d1d;margin-bottom:10px">The surplus quantity will be added as an <strong>In-Transit stock entry</strong> (no customer) linked to the same SPO. It can be assigned to an order later.</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="_proceedWithSurplus()" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">✅ Yes, Proceed with Surplus</button>
+            <button onclick="_cancelSurplus()" style="background:#fff;color:#dc2626;border:2px solid #dc2626;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✕ No, Fix Quantities</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mftr">
+    <button class="btn btn-outline btn-sm" onclick="closeModal('transitModal')">Cancel</button>
+    <button class="btn btn-primary btn-sm" id="transitConfirmBtn" onclick="confirmTransit()" style="background:#f97316;border-color:#f97316">🚚 Confirm Shipment</button>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- Arrival Day Detail Popup -->
+<div class="overlay" id="arrivalModal">
+<div class="modal" style="width:740px">
+  <div class="mhdr">
+    <div>
+      <h3 id="arrModalTitle">Arrivals</h3>
+      <div id="arrModalSub" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <button class="mclose" onclick="closeModal('arrivalModal')">✕</button>
+  </div>
+  <div class="mbody" id="arrModalBody" style="padding:0"></div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MASTER IMPORT / EXPORT  — Column Mapper Modal
+════════════════════════════════════════════════════════ -->
+<div class="overlay" id="masterMapperModal">
+<div class="modal" style="width:640px;max-height:90vh;display:flex;flex-direction:column">
+  <div class="mhdr">
+    <div>
+      <h3 id="mapperTitle">📊 Map Excel Columns</h3>
+      <div id="mapperSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <button class="mclose" onclick="closeModal('masterMapperModal')">✕</button>
+  </div>
+  <div class="mbody" style="overflow-y:auto;flex:1;padding:0">
+    <!-- info banner -->
+    <div style="background:#fffbeb;border-bottom:1px solid #fde68a;padding:10px 18px;font-size:12.5px;color:#92400e;display:flex;gap:8px;align-items:flex-start">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <span>The uploaded file's column headings don't fully match. Use the dropdowns below to map each expected field to the correct Excel column. Required fields are marked <b style="color:#dc2626">*</b>.</span>
+    </div>
+    <!-- preview strip -->
+    <div id="mapperPreview" style="padding:10px 18px 0;font-size:11px;color:#64748b"></div>
+    <!-- mapping table -->
+    <div style="padding:14px 18px">
+      <table style="width:100%;border-collapse:collapse" id="mapperTable">
+        <thead>
+          <tr style="background:#f8fafc;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em">
+            <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:left;width:38%">Expected Field</th>
+            <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:left">Excel Column → Map To</th>
+            <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;width:80px">Status</th>
+          </tr>
+        </thead>
+        <tbody id="mapperRows"></tbody>
+      </table>
+    </div>
+    <!-- sample row preview -->
+    <div id="mapperSampleWrap" style="padding:0 18px 14px"></div>
+  </div>
+  <div class="mftr" style="border-top:1px solid #e2e8f0">
+    <div id="mapperRowCount" style="font-size:12px;color:#64748b;flex:1"></div>
+    <button class="btn btn-outline" onclick="closeModal('masterMapperModal')">Cancel</button>
+    <button class="btn btn-primary" id="mapperImportBtn" onclick="confirmMasterImport()">✅ Import Data</button>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     IMPORT MODE MODAL — shown after column mapping
+════════════════════════════════════════════════════════ -->
+<div class="overlay" id="importModeModal">
+<div class="modal" style="width:680px;max-height:92vh;display:flex;flex-direction:column">
+  <div class="mhdr">
+    <div>
+      <h3 id="imTitle">📥 Choose Import Mode</h3>
+      <div id="imSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <button class="mclose" onclick="closeModal('importModeModal')">✕</button>
+  </div>
+  <div class="mbody" style="overflow-y:auto;flex:1;padding:18px">
+
+    <!-- Mode selector -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+
+      <label id="imMode_add" onclick="_imSelectMode('add')" style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:10px;border:2px solid #1a73e8;background:#eff6ff;cursor:pointer;transition:all .15s">
+        <input type="radio" name="imMode" value="add" checked style="margin-top:3px;accent-color:#1a73e8;width:16px;height:16px;flex-shrink:0">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b">➕ Add New Records Only</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Inserts records that don't already exist. Existing records are left completely unchanged.</div>
+        </div>
+      </label>
+
+      <label id="imMode_update" onclick="_imSelectMode('update')" style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;transition:all .15s">
+        <input type="radio" name="imMode" value="update" style="margin-top:3px;accent-color:#f59e0b;width:16px;height:16px;flex-shrink:0">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b">✏️ Update Existing + Add New</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Matches by key field. Updates selected attributes on existing records, and adds any new ones. Choose which fields to overwrite below.</div>
+        </div>
+      </label>
+
+      <label id="imMode_replace" onclick="_imSelectMode('replace')" style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;transition:all .15s">
+        <input type="radio" name="imMode" value="replace" style="margin-top:3px;accent-color:#dc2626;width:16px;height:16px;flex-shrink:0">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#dc2626">🔁 Full Replace</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:2px">Clears ALL existing records first, then imports the file fresh. Use with caution.</div>
+        </div>
+      </label>
+    </div>
+
+    <!-- Field selector (shown only in update mode) -->
+    <div id="imFieldSelector" style="display:none;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:#92400e">Which fields should be overwritten on existing records?</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="_imCheckAllFields(true)" style="padding:3px 10px;border-radius:6px;border:1px solid #fde68a;background:#fff;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">All</button>
+          <button onclick="_imCheckAllFields(false)" style="padding:3px 10px;border-radius:6px;border:1px solid #fde68a;background:#fff;font-size:11px;font-weight:700;cursor:pointer;color:#92400e">None</button>
+        </div>
+      </div>
+      <div id="imFieldList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+      <div style="font-size:11px;color:#92400e;margin-top:8px;opacity:.8">The key/match field is always read-only — it's used to find the existing record.</div>
+    </div>
+
+    <!-- Preview counts -->
+    <div id="imPreviewCounts" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+      <div style="background:#f0fdf4;border-radius:9px;padding:12px;text-align:center;border:1.5px solid #bbf7d0">
+        <div id="imCntNew" style="font-size:26px;font-weight:800;color:#16a34a">—</div>
+        <div style="font-size:11px;color:#15803d;font-weight:600;margin-top:2px">NEW records</div>
+      </div>
+      <div style="background:#fffbeb;border-radius:9px;padding:12px;text-align:center;border:1.5px solid #fde68a">
+        <div id="imCntUpd" style="font-size:26px;font-weight:800;color:#d97706">—</div>
+        <div style="font-size:11px;color:#b45309;font-weight:600;margin-top:2px">EXISTING (will update)</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:9px;padding:12px;text-align:center;border:1.5px solid #e2e8f0">
+        <div id="imCntSkip" style="font-size:26px;font-weight:800;color:#94a3b8">—</div>
+        <div style="font-size:11px;color:#64748b;font-weight:600;margin-top:2px">SKIPPED (no change)</div>
+      </div>
+    </div>
+
+    <!-- Diff preview table -->
+    <div id="imDiffWrap" style="display:none">
+      <div style="font-size:12px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Preview of changes (first 10 matches)</div>
+      <div style="overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0">
+        <table id="imDiffTable" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="background:#f8fafc">
+            <tr id="imDiffHead"></tr>
+          </thead>
+          <tbody id="imDiffBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+  <div class="mftr" style="border-top:1px solid #e2e8f0">
+    <div id="imSummaryLine" style="font-size:12px;color:#64748b;flex:1"></div>
+    <button class="btn btn-outline" onclick="closeModal('importModeModal')">Cancel</button>
+    <button class="btn btn-primary" id="imApplyBtn" onclick="_applyMasterImport()">✅ Apply Import</button>
+  </div>
+</div>
+</div>
+
+<!-- Dealer Pending Orders Popup -->
+<div class="overlay" id="dealerPopup">
+<div class="modal" style="width:780px">
+  <div class="mhdr">
+    <div>
+      <h3 id="dpTitle">Pending Orders</h3>
+      <div id="dpSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-sm" onclick="dealerPopupWhatsApp()" style="background:#25D366;color:#fff;border:none;display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.118 1.532 5.844L.054 23.25a.75.75 0 0 0 .916.917l5.453-1.476A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.891 0-3.667-.523-5.18-1.433l-.37-.22-3.833 1.038 1.042-3.767-.24-.383A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        WhatsApp
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="dealerPopupShare()" style="display:flex;align-items:center;gap:5px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
+      <button id="dpScreenshotBtn" onclick="dealerPopupScreenshot()" style="display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;background:#6366f1;color:#fff;border:none;transition:all .15s" title="Copy screenshot to clipboard">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Screenshot
+      </button>
+      <button class="mclose" onclick="closeModal('dealerPopup')">✕</button>
+    </div>
+  </div>
+  <div class="mbody" id="dpBody" style="padding:0"></div>
+</div>
+</div>
+
+<!-- ══════════ RECENTLY PURCHASED COL FILTER POPUP ══════════ -->
+<div id="rpFilterPopup" onclick="event.stopPropagation()" style="display:none;position:fixed;z-index:9999;background:#fff;border:1.5px solid #10b981;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:10px 12px;min-width:200px">
+  <div id="rpCfpLabel" style="font-size:10px;font-weight:800;text-transform:uppercase;color:#065f46;margin-bottom:6px"></div>
+  <input id="rpCfpInput" type="text" placeholder="Type to filter…"
+    style="width:100%;padding:6px 10px;border:1.5px solid #10b981;border-radius:7px;font-size:12px;outline:none;box-sizing:border-box"
+    oninput="renderRecentPurchased()" onkeydown="if(event.key==='Enter')_rpPinFilter();if(event.key==='Escape'){document.getElementById('rpFilterPopup').style.display='none';}">
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <button onclick="_rpPinFilter()" style="flex:1;padding:5px;background:#10b981;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">📌 Pin</button>
+    <button onclick="_rpClearFilter()" style="flex:1;padding:5px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✕ Clear</button>
+  </div>
+</div>
+
+<!-- Due Orders filter popup -->
+<div id="dueFilterPopup" onclick="event.stopPropagation()" style="display:none;position:fixed;z-index:9999;background:#fff;border:1.5px solid #f43f5e;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:10px 12px;min-width:200px">
+  <div id="dueCfpLabel" style="font-size:10px;font-weight:800;text-transform:uppercase;color:#9f1239;margin-bottom:6px"></div>
+  <input id="dueCfpInput" type="text" placeholder="Type to filter…"
+    style="width:100%;padding:6px 10px;border:1.5px solid #f43f5e;border-radius:7px;font-size:12px;outline:none;box-sizing:border-box"
+    oninput="renderDueOrders()" onkeydown="if(event.key==='Enter')_duePinFilter();if(event.key==='Escape'){document.getElementById('dueFilterPopup').style.display='none';}">
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <button onclick="_duePinFilter()" style="flex:1;padding:5px;background:#f43f5e;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">📌 Pin</button>
+    <button onclick="_dueClearFilter()" style="flex:1;padding:5px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✕ Clear</button>
+  </div>
+</div>
+
+<!-- LR card filter popup -->
+<div id="lrFilterPopup" onclick="event.stopPropagation()" style="display:none;position:fixed;z-index:9999;background:#fff;border:1.5px solid #7c3aed;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);padding:10px 12px;min-width:200px">
+  <div id="lrCfpLabel" style="font-size:10px;font-weight:800;text-transform:uppercase;color:#4c1d95;margin-bottom:6px"></div>
+  <input id="lrCfpInput" type="text" placeholder="Type to filter…"
+    style="width:100%;padding:6px 10px;border:1.5px solid #7c3aed;border-radius:7px;font-size:12px;outline:none;box-sizing:border-box"
+    oninput="renderLrCard()" onkeydown="if(event.key==='Enter')_lrPinFilter();if(event.key==='Escape'){document.getElementById('lrFilterPopup').style.display='none';}">
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <button onclick="_lrPinFilter()" style="flex:1;padding:5px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">📌 Pin</button>
+    <button onclick="_lrClearFilter()" style="flex:1;padding:5px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✕ Clear</button>
+  </div>
+</div>
+
+<!-- ══════════ SUPPLIER POPUP ══════════ -->
+<div class="overlay" id="supplierPopup">
+<div class="modal" style="width:780px">
+  <div class="mhdr">
+    <div>
+      <h3 id="spTitle">Pending Orders</h3>
+      <div id="spSubtitle" style="font-size:12px;color:#64748b;margin-top:2px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-sm" onclick="supplierPopupWhatsApp()" style="background:#25D366;color:#fff;border:none;display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.118 1.532 5.844L.054 23.25a.75.75 0 0 0 .916.917l5.453-1.476A11.952 11.952 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.891 0-3.667-.523-5.18-1.433l-.37-.22-3.833 1.038 1.042-3.767-.24-.383A9.953 9.953 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        WhatsApp
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="supplierPopupShare()" style="display:flex;align-items:center;gap:5px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Share
+      </button>
+      <button id="spScreenshotBtn" onclick="supplierPopupScreenshot()" style="display:flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;background:#6366f1;color:#fff;border:none;transition:all .15s" title="Copy screenshot to clipboard">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Screenshot
+      </button>
+      <button class="mclose" onclick="closeModal('supplierPopup')">✕</button>
+    </div>
+  </div>
+  <div class="mbody" id="spBody" style="padding:0"></div>
+</div>
+</div>
+
+<!-- ══════════ CANCEL ORDER MODAL ══════════ -->
+<div class="overlay" id="cancelOrderModal">
+<div class="modal" style="width:560px;max-height:90vh;display:flex;flex-direction:column;border-radius:14px">
+  <div class="mhdr" style="background:#dc2626;color:#fff;border-radius:14px 14px 0 0;padding:16px 20px">
+    <div>
+      <h3 style="color:#fff;font-size:16px;margin:0">🚫 Cancel Order</h3>
+      <div id="cancelModalSub" style="font-size:11px;color:#fecaca;margin-top:3px"></div>
+    </div>
+    <button class="mclose" style="color:#fff;opacity:.8" onclick="closeModal('cancelOrderModal')">✕</button>
+  </div>
+  <div class="mbody" style="flex:1;overflow-y:auto">
+    <!-- Late-stage warning -->
+    <div id="cancelLateWarn" style="display:none;background:#fff7ed;border:1.5px solid #f97316;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#9a3412;font-weight:600">
+      ⚠️ This order has already been processed beyond approval. Cancellation will be logged and may require vendor coordination.
+    </div>
+    <!-- Line items to cancel -->
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Select items to cancel</div>
+    <div id="cancelLineItems" style="border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:16px"></div>
+    <!-- Reason -->
+    <div class="fg">
+      <label style="font-size:12px;font-weight:700;color:#374151">Cancellation Reason <span style="color:#dc2626">*</span></label>
+      <textarea id="cancelReason" rows="3" placeholder="e.g. Customer cancelled order, material not required, duplicate entry…"
+        style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;outline:none;font-family:inherit"
+        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      <div id="cancelReasonErr" style="display:none;font-size:11px;color:#dc2626;font-weight:700;margin-top:3px">⚠ Reason is required</div>
+    </div>
+  </div>
+  <div class="mftr" style="justify-content:space-between">
+    <button class="btn btn-outline" onclick="closeModal('cancelOrderModal')">Keep Order</button>
+    <button onclick="confirmCancelOrders()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 22px;font-size:13px;font-weight:700;cursor:pointer">🚫 Confirm Cancellation</button>
+  </div>
+</div>
+</div>
+
+<!-- ══════════ ORDER HISTORY LOG MODAL ══════════ -->
+<div class="overlay" id="orderTrailModal">
+<div class="modal" style="width:900px;max-height:92vh;display:flex;flex-direction:column;border-radius:14px">
+  <div class="mhdr" style="background:#1e293b;color:#fff;border-radius:14px 14px 0 0;padding:16px 20px">
+    <div>
+      <h3 id="trailModalTitle" style="color:#fff;font-size:16px;margin:0">📋 Order History Log</h3>
+      <div id="trailModalSub" style="font-size:11px;color:#94a3b8;margin-top:3px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;background:#334155;border-radius:8px;padding:5px 12px">
+        <span style="color:#94a3b8;font-size:13px">🔍</span>
+        <input id="trailSearch" type="text" placeholder="Search…"
+          style="background:transparent;border:none;outline:none;color:#f1f5f9;font-size:13px;width:160px"
+          oninput="_renderHistoryTable()">
+      </div>
+      <button class="mclose" onclick="closeModal('orderTrailModal')" style="color:#fff;opacity:.7">✕</button>
+    </div>
+  </div>
+  <div class="mbody" style="padding:0;overflow:auto;flex:1">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;position:sticky;top:0;z-index:2">
+          <th onclick="_sortHistory('don')"   style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">DON No <span id="hSort_don"   style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('by')"    style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">Modified By <span id="hSort_by"    style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('role')"  style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">User Role <span id="hSort_role"  style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('type')"  style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">Type <span id="hSort_type"  style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('from')"  style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">From <span id="hSort_from"  style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('to')"    style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">To <span id="hSort_to"    style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('qty')"   style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">Qty <span id="hSort_qty"   style="color:#94a3b8">⇅</span></th>
+          <th onclick="_sortHistory('at')"    style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#374151;cursor:pointer;white-space:nowrap;user-select:none">Date <span id="hSort_at"    style="color:#94a3b8">↓</span></th>
+        </tr>
+      </thead>
+      <tbody id="trailModalBody"></tbody>
+    </table>
+    <div id="trailModalEmpty" style="display:none;text-align:center;padding:48px;color:#94a3b8">
+      <div style="font-size:40px;margin-bottom:8px">📋</div>
+      <div style="font-size:14px">No history entries found</div>
+    </div>
+  </div>
+  <div style="padding:10px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;border-radius:0 0 14px 14px">
+    <span id="trailModalInfo" style="font-size:12px;color:#64748b"></span>
+  </div>
+</div>
+</div>
+
+<script src="/legacy/app1.js"></script>
+<script src="/legacy/app2.js"></script>
+
+
+<!-- Mobile sidebar overlay -->
+<div class="mob-overlay" id="mobOverlay" onclick="closeMobSidebar()"></div>
+
+<!-- ── Dashboard Layout Editor Modal ── -->
+<div id="dashLayoutModal" onclick="if(event.target===this)_closeDLM()">
+  <div class="dlm-box">
+    <div class="dlm-head">
+      <span class="dlm-title">📐 Dashboard Layout</span>
+      <button class="dlm-close" onclick="_closeDLM()">✕</button>
+    </div>
+    <div class="dlm-body" id="dlmBody"></div>
+    <div class="dlm-foot">
+      <button onclick="_dlmReset()" style="font-size:11px;color:#64748b;background:none;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:700;transition:all .15s" onmouseover="this.style.borderColor='#f43f5e';this.style.color='#f43f5e'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">↺ Reset Default</button>
+      <span style="flex:1"></span>
+      <button onclick="_closeDLM()" style="font-size:12px;color:#64748b;background:#f1f5f9;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;font-weight:700">Cancel</button>
+      <button onclick="_dlmApply()" style="font-size:12px;color:#fff;background:#1a73e8;border:none;border-radius:8px;padding:7px 18px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(26,115,232,.3)">✓ Apply</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- STENCIL OMS – API BRIDGE v7 -->
+<script src="/legacy/app3.js"></script>
+
+<script src="/legacy/app4.js"></script>
+<!-- ── React (Vite) entry ──────────────────────────────────────────
+     Boots the React shell for the MERN client. This is the React half of
+     the stack and is bundled by `vite build`. It mounts out-of-flow and
+     renders nothing, so every screen above stays byte-for-byte identical.
+     Screens can be migrated into real React components over time. -->
+<script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
