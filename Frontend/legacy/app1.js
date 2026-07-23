@@ -9418,6 +9418,9 @@ function renderDeliveries(){
     const customers=[...new Set(data.orders.map(o=>o.customer).filter(Boolean))];
     const invoice=data.orders.find(o=>o.vendorInvoiceNum)?.vendorInvoiceNum||'';
     const invoiceDate=data.orders.find(o=>o.vendorInvoiceDate)?.vendorInvoiceDate||'';
+    // GRN tab: show the LR number(s) in the header instead of the DON number
+    const _grnLrs=[...new Set(data.orders.map(o=>o.lr||(o.transitDetails&&o.transitDetails.lr)).filter(Boolean))];
+    const grnLrLabel=_grnLrs.length?_grnLrs.join(' · '):'(No LR)';
     // 3 states: all billed (green), partially billed (amber), purely purchased (cyan)
     const hdrColor=allBilled?'#16a34a':isPartial?'#f97316':'#06b6d4';
 
@@ -9475,8 +9478,11 @@ function renderDeliveries(){
           <!-- Row 1: DON + customer pill + stats + arrow -->
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-size:22px;font-weight:900;color:#0f172a;font-family:monospace;letter-spacing:.5px;line-height:1">
-              <span style="font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:0;vertical-align:middle">DON</span>
-              <span style="color:${hdrColor};font-size:20px"> – </span>${donKey} <span style="font-size:13px;font-weight:600;color:#94a3b8">${dd}/${mm}</span>
+              ${_delivStatusFilter==='GRN'
+                ? `<span style="font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:0;vertical-align:middle">LR</span>
+                   <span style="color:${hdrColor};font-size:20px"> – </span>${grnLrLabel}`
+                : `<span style="font-size:13px;font-weight:700;color:#94a3b8;letter-spacing:0;vertical-align:middle">DON</span>
+                   <span style="color:${hdrColor};font-size:20px"> – </span>${donKey} <span style="font-size:13px;font-weight:600;color:#94a3b8">${dd}/${mm}</span>`}
             </span>
             <span style="font-size:12px;font-weight:700;color:#fff;background:${hdrColor};padding:4px 12px;border-radius:20px;box-shadow:0 2px 8px ${hdrColor}50;display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
               👤 ${customers.join(' · ')}
