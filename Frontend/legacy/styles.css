@@ -588,3 +588,18 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
 .mob-overlay.open{display:block}
 
+
+/* ═══════════════ SKELETON LOADING (instant login) ═══════════════
+   Shown in the content area the moment you log in, while orders/masters
+   stream in behind it — so the app appears immediately instead of a spinner. */
+.skel-overlay{position:absolute;left:0;right:0;bottom:0;z-index:60;background:#f1f5f9;padding:22px 24px;overflow:hidden}
+.skel-block{position:relative;overflow:hidden;background:#e5e9f0;border-radius:12px}
+.skel-block::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);animation:skel-sh 1.3s infinite}
+@keyframes skel-sh{100%{transform:translateX(100%)}}
+.skel-pills{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+.skel-pill{width:104px;height:28px;border-radius:20px}
+.skel-cards{display:flex;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.skel-card{flex:1;min-width:200px;height:132px}
+.skel-rows{display:flex;flex-direction:column;gap:10px}
+.skel-row{height:40px;width:100%}

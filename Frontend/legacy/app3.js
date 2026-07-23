@@ -93,6 +93,41 @@
     if(typeof _startPoll==='function' && currentUser){ _startPoll(); if(typeof _startStream==='function') _startStream(); }
   }
 
+  /* ── Skeleton loading state (instant login) ──
+     Shimmer placeholders shown in the content area the moment you log in, so
+     the app appears immediately while orders/masters stream in behind it. */
+  function _showSkeletons(){
+    try{
+      if(document.getElementById('_skelOverlay')) return;
+      const main=document.querySelector('.main'); if(!main) return;
+      if(getComputedStyle(main).position==='static') main.style.position='relative';
+      const tb=main.querySelector('.topbar');
+      const sk=document.createElement('div');
+      sk.id='_skelOverlay'; sk.className='skel-overlay';
+      sk.style.top=(tb?tb.offsetHeight:56)+'px';
+      sk.innerHTML=
+        '<div class="skel-pills">'+'<div class="skel-block skel-pill"></div>'.repeat(7)+'</div>'+
+        '<div class="skel-cards">'+'<div class="skel-block skel-card"></div>'.repeat(3)+'</div>'+
+        '<div class="skel-rows">'+'<div class="skel-block skel-row"></div>'.repeat(9)+'</div>';
+      main.appendChild(sk);
+    }catch(e){}
+  }
+  function _hideSkeletons(){ try{ const s=document.getElementById('_skelOverlay'); if(s) s.remove(); }catch(e){} }
+
+  /* ── Instant reveal (fresh login) ──
+     Show the app shell + skeleton IMMEDIATELY after auth, before any data.
+     Unlike _renderApp() this does NOT auto-persist (which would overwrite the
+     localStorage cache with empty arrays) — persistence happens once the real
+     data has loaded (end of _loadAll's background pass). */
+  function _revealInstant(){
+    _dataReady=true; _initPending=false;
+    const _ls=document.getElementById('loginScreen'); if(_ls) _ls.style.display='none';
+    const _ap=document.getElementById('app');         if(_ap) _ap.style.display='block';
+    const _ov=document.getElementById('appLoader');   if(_ov) _ov.classList.remove('show');
+    try{ if(typeof _origInitApp==='function') _origInitApp.call(window); }catch(e){console.warn('initApp:',e);}
+    _showSkeletons();
+  }
+
   /* ── low-level fetch (throws only on non-ok, preserves error.status) ── */
   async function _req(method, path, body){
     const tok = localStorage.getItem(_JWT_KEY);
@@ -299,12 +334,19 @@
         const _first=await _req('GET','/api/orders?page=1&limit=200');
         _applyOrderData(_first.data||[]);
       }catch(e){console.warn('orders p1:',e);}
-      /* finish the rest in the background, then refresh the UI */
+      /* page 1 is in → drop the skeleton and paint the first ~200 orders */
+      _hideSkeletons();
+      _refreshAfterLoad();
+      /* finish the rest in the background, then refresh again + cache */
       (async()=>{
         try{ await _mastersP; }catch(e){}
         try{ await _pollOrders(); }catch(e){}   /* full orders, dirty-preserving re-render */
         try{ _restorePending(); }catch(e){}
+        try{ if(typeof populateDropdowns==='function') populateDropdowns(); }catch(e){} /* masters now loaded */
         _refreshAfterLoad();
+        /* persist the fully-loaded data to localStorage (skipped during instant reveal) */
+        try{ if(typeof persistData==='function') persistData(); }catch(e){}
+        try{ if(typeof persistOrders==='function') persistOrders(); }catch(e){}
       })();
       return;
     }
@@ -596,17 +638,12 @@
     /* Button spinner covers the quick credential check */
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="btn-spin"></span> Signing in…'; }
     try{
-      const r=await _req('POST','/api/auth/login',{username:u,password:p});
+      const r=await _req('POST','/api/auth/login',{username:u,password:p});   /* ~0.5s */
       localStorage.setItem(_JWT_KEY,r.token);
-      /* Credentials OK — show the full-screen skeleton while all data loads */
-      if(alText) alText.textContent='Welcome back!';
-      if(alSub)  alSub.textContent='Loading your orders & masters…';
-      if(loader) loader.classList.add('show');
       const au=r.user;
       let usr=users.find(x=>x.username===au.username);
       if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,biller:au.biller||'',password:''};users.push(usr);}
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
-      await _loadAll(true);   /* fast: reveal after orders page 1, stream the rest */
       _authReady=true;
       currentUser=usr;
       _applyPerms({id:usr.id,permissions:au.permissions});
@@ -614,15 +651,14 @@
         sessionStorage.setItem('oms_session',JSON.stringify({id:usr.id,username:usr.username}));
         localStorage.setItem(_USR_KEY,JSON.stringify({id:usr.id,username:usr.username,name:usr.name,role:usr.role,permissions:au.permissions||[]}));
       }catch(e){}
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      if(typeof audit==='function')
-        audit('LOGIN',`Logged in as ${usr.name||usr.username} (${typeof getRoleLabel==='function'?getRoleLabel(usr.role):usr.role})`,'user',usr.id);
-      _startPoll();
-      _renderApp();
-      /* App is rendered behind the overlay — now reveal it */
+      /* ── Logged in — reveal the app IMMEDIATELY with skeletons; data streams in behind ── */
       if(loader) loader.classList.remove('show');
       if(btn){ btn.disabled=false; btn.innerHTML=_btnHTML; }
+      _revealInstant();
+      _startPoll();
+      if(typeof audit==='function')
+        audit('LOGIN',`Logged in as ${usr.name||usr.username} (${typeof getRoleLabel==='function'?getRoleLabel(usr.role):usr.role})`,'user',usr.id);
+      _loadAll(true);   /* NOT awaited: orders page 1 fills in, then the rest streams in */
     }catch(e){
       if(loader) loader.classList.remove('show');
       if(btn){ btn.disabled=false; btn.innerHTML=_btnHTML||'🔐 Sign In'; }
