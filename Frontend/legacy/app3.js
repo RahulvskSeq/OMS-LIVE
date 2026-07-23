@@ -192,11 +192,79 @@
   }
 
   /* ── load all master data from API ── */
-  async function _loadAll(){
+  /* Dedup + map a flat array of raw order docs into the global `orders` array. */
+  function _applyOrderData(all){
+    const _SORD=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased','Billed','Cancelled'];
+    const _sp=s=>{const i=_SORD.indexOf(s);return i>=0?i:-1;};
+    const _seenKeys=new Map(); const _deduped=[];
+    for(const o of all){
+      const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
+      if(!_seenKeys.has(key)){_seenKeys.set(key,{o,sp:_sp(o.status),sq:o.seqId||0});_deduped.push(o);}
+      else{const p=_seenKeys.get(key);const cs=_sp(o.status);const cq=o.seqId||0;
+        if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_deduped.indexOf(p.o);if(pi>=0)_deduped[pi]=o;_seenKeys.set(key,{o,sp:cs,sq:cq});}}
+    }
+    orders=_deduped.map(_toLocal);
+    if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+    orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap */
+  }
+
+  /* Restore any pending local (offline) changes over the freshly-loaded orders. */
+  function _restorePending(){
+    try{
+      const pendingIds=JSON.parse(localStorage.getItem(_PENDING_KEY)||'[]');
+      if(pendingIds.length){
+        const lsOrders=JSON.parse(localStorage.getItem('oms_orders_v3')||'[]');
+        for(const pid of pendingIds){
+          const lsOrd=lsOrders.find(o=>o.id===pid);
+          if(!lsOrd) continue;
+          const idx=orders.findIndex(o=>o.id===pid);
+          if(idx>=0){
+            /* Override API version with local version — local is more recent */
+            const merged={...orders[idx],...lsOrd, _id:orders[idx]._id||lsOrd._id};
+            orders[idx]=merged;
+            _snap[pid]=null; /* force re-sync */
+          } else {
+            /* New order not yet in API */
+            orders.push({...lsOrd});
+          }
+        }
+        /* Re-seed nextOrderId to account for any local orders */
+        if(orders.length>0) nextOrderId=Math.max(nextOrderId,...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
+        /* Push pending to API in background immediately */
+        setTimeout(async()=>{
+          for(const pid of [...pendingIds]){
+            const o=orders.find(x=>x.id===pid);
+            if(!o) continue;
+            try{
+              if(!o._id){
+                const r=await _req('POST','/api/orders',_toAPI(o));
+                if(r.data){o._id=r.data._id;}
+              }else{
+                await _req('PUT','/api/orders/'+o._id,_toAPI(o));
+              }
+              _snap[o.id]=JSON.stringify(o);
+              _clearPending(pid);
+            }catch(ex){console.warn('pending sync fail:',ex);}
+          }
+        },200);
+      }
+    }catch(ex){console.warn('pending restore:',ex);}
+  }
+
+  /* Lightweight re-render after a background load finishes — same refresh the
+     30s poll uses (re-paints the current page + sidebar; does NOT re-run initApp). */
+  function _refreshAfterLoad(){
+    try{
+      if(currentUser){ const f=users.find(u=>u.username===currentUser.username); if(f) Object.assign(currentUser,f); }
+      if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
+      if(typeof buildSidebar==='function') buildSidebar();
+    }catch(e){console.warn('post-load refresh:',e);}
+  }
+
+  /* Load every order page, dedup, and restore pending changes (blocking). */
+  async function _loadOrdersFull(){
     try{
       let all=[];
-      /* page 1 first (returns the total page count), then fetch the rest in
-         parallel instead of one-by-one — same orders, far fewer round-trips */
       const _first=await _req('GET','/api/orders?page=1&limit=200');
       all=all.concat(_first.data||[]);
       const _np=Math.min(_first.pages||1,50);
@@ -205,64 +273,46 @@
         for(let _p=2;_p<=_np;_p++) _reqs.push(_req('GET',`/api/orders?page=${_p}&limit=200`));
         (await Promise.all(_reqs)).forEach(r=>{ all=all.concat(r.data||[]); });
       }
-      const _SORD=['Order','Approved','PO Raised','In Transit','At Transporter','Warehouse','GRN','Purchased','Billed','Cancelled'];
-      const _sp=s=>{const i=_SORD.indexOf(s);return i>=0?i:-1;};
-      const _seenKeys=new Map(); const _deduped=[];
-      for(const o of all){
-        const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
-        if(!_seenKeys.has(key)){_seenKeys.set(key,{o,sp:_sp(o.status),sq:o.seqId||0});_deduped.push(o);}
-        else{const p=_seenKeys.get(key);const cs=_sp(o.status);const cq=o.seqId||0;
-          if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_deduped.indexOf(p.o);if(pi>=0)_deduped[pi]=o;_seenKeys.set(key,{o,sp:cs,sq:cq});}}
-      }
-      orders=_deduped.map(_toLocal);
-      if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
-      orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap */
-
-      /* ── Restore any pending local changes that didn't make it to API ── */
-      try{
-        const pendingIds=JSON.parse(localStorage.getItem(_PENDING_KEY)||'[]');
-        if(pendingIds.length){
-          const lsOrders=JSON.parse(localStorage.getItem('oms_orders_v3')||'[]');
-          for(const pid of pendingIds){
-            const lsOrd=lsOrders.find(o=>o.id===pid);
-            if(!lsOrd) continue;
-            const idx=orders.findIndex(o=>o.id===pid);
-            if(idx>=0){
-              /* Override API version with local version — local is more recent */
-              const merged={...orders[idx],...lsOrd, _id:orders[idx]._id||lsOrd._id};
-              orders[idx]=merged;
-              _snap[pid]=null; /* force re-sync */
-            } else {
-              /* New order not yet in API */
-              orders.push({...lsOrd});
-            }
-          }
-          /* Re-seed nextOrderId to account for any local orders */
-          if(orders.length>0) nextOrderId=Math.max(nextOrderId,...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
-          /* Push pending to API in background immediately */
-          setTimeout(async()=>{
-            for(const pid of [...pendingIds]){
-              const o=orders.find(x=>x.id===pid);
-              if(!o) continue;
-              try{
-                if(!o._id){
-                  const r=await _req('POST','/api/orders',_toAPI(o));
-                  if(r.data){o._id=r.data._id;}
-                }else{
-                  await _req('PUT','/api/orders/'+o._id,_toAPI(o));
-                }
-                _snap[o.id]=JSON.stringify(o);
-                _clearPending(pid);
-              }catch(ex){console.warn('pending sync fail:',ex);}
-            }
-          },200);
-        }
-      }catch(ex){console.warn('pending restore:',ex);}
+      _applyOrderData(all);
+      _restorePending();
     }catch(e){console.warn('orders:',e);}
+  }
 
-    /* ── Masters: fetch all six CONCURRENTLY (was sequential) ──
-       Each block keeps its own try/catch + mapping verbatim; only the control
-       flow changed from one-after-another to all-at-once. */
+  /* ────────────────────────────────────────────────────────────────
+     _loadAll(fast)
+     Orders + masters now load CONCURRENTLY (were sequential: ~orders 13s
+     THEN masters 7s ≈ 20s cold).
+       fast=true  (fresh login): the reveal blocks on ONLY orders page 1
+                  (~200 most-recent orders) + kicking off masters. The rest
+                  of the orders and the full product catalog stream in the
+                  background, then the table + sidebar re-render. Login feels
+                  near-instant instead of waiting for every row to transfer
+                  from the (throttled) DB.
+       fast=false (session restore): wait for the full load — restore also
+                  runs the one-time localStorage→DB migration, which must see
+                  real master counts before deciding anything is "empty".
+  ──────────────────────────────────────────────────────────────── */
+  async function _loadAll(fast){
+    const _mastersP=_loadMasters();   /* concurrent with orders */
+    if(fast){
+      try{
+        const _first=await _req('GET','/api/orders?page=1&limit=200');
+        _applyOrderData(_first.data||[]);
+      }catch(e){console.warn('orders p1:',e);}
+      /* finish the rest in the background, then refresh the UI */
+      (async()=>{
+        try{ await _mastersP; }catch(e){}
+        try{ await _pollOrders(); }catch(e){}   /* full orders, dirty-preserving re-render */
+        try{ _restorePending(); }catch(e){}
+        _refreshAfterLoad();
+      })();
+      return;
+    }
+    await _loadOrdersFull();
+    await _mastersP;
+  }
+
+  async function _loadMasters(){
     await Promise.all([
     (async()=>{ try{
       const r=await _req('GET','/api/customers');
@@ -556,7 +606,7 @@
       let usr=users.find(x=>x.username===au.username);
       if(!usr){usr={id:au.id,username:au.username,name:au.name||au.username,role:au.role,biller:au.biller||'',password:''};users.push(usr);}
       usr.role=au.role; usr.name=au.name||au.username; usr.id=au._id||au.id;
-      await _loadAll();
+      await _loadAll(true);   /* fast: reveal after orders page 1, stream the rest */
       _authReady=true;
       currentUser=usr;
       _applyPerms({id:usr.id,permissions:au.permissions});
