@@ -6540,11 +6540,43 @@ function setupProdActions(){
   document.getElementById('prodHeaderActions').innerHTML=can('editMaster')
     ?`<button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Add Product</button>`:'';
 }
+/* ── Master-table pagination (client-side, 50/page) ──
+   Renders one page of rows at a time instead of dumping thousands of <tr>s
+   into the DOM at once (the Products master alone can be 18k rows). Page state
+   auto-resets to 1 whenever the search/filter changes (tracked via a signature).*/
+var _MPP=50;
+window._mPage=window._mPage||{prod:1,cust:1,vend:1,trans:1};
+window._mSig=window._mSig||{};
+function _mPageState(key, sig, totalLen){
+  if(_mSig[key]!==sig){ _mPage[key]=1; _mSig[key]=sig; }
+  const pages=Math.max(Math.ceil(totalLen/_MPP),1);
+  if(_mPage[key]>pages) _mPage[key]=pages;
+  if(_mPage[key]<1) _mPage[key]=1;
+  return {page:_mPage[key], pages};
+}
+function _mPager(key, page, pages, total){
+  if(!total) return '';
+  const from=(page-1)*_MPP+1, to=Math.min(page*_MPP,total);
+  const btns = pages>1 ? `<div class="mpager-btns">
+      <button class="btn btn-outline btn-xs" ${page<=1?'disabled':''} onclick="_mGo('${key}',${page-1})">‹ Prev</button>
+      <span class="mpager-page">Page ${page} / ${pages}</span>
+      <button class="btn btn-outline btn-xs" ${page>=pages?'disabled':''} onclick="_mGo('${key}',${page+1})">Next ›</button>
+    </div>` : '';
+  return `<div class="mpager"><span class="mpager-info">Showing ${from}–${to} of ${total}</span>${btns}</div>`;
+}
+function _mGo(key, n){
+  _mPage[key]=n;
+  ({prod:renderProductsTable,cust:renderCustomersTable,vend:renderVendorsTable,trans:renderTransportersTable})[key]();
+  const wrap={prod:'productsTableWrap',cust:'customersTableWrap',vend:'vendorsTableWrap',trans:'transportersTableWrap'}[key];
+  const el=document.getElementById(wrap); if(el&&el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+}
 function renderProductsTable(){
   const q=(document.getElementById('prodSrch')?.value||'').toLowerCase();
   const cat=document.getElementById('prodCat')?.value||'';
-  const data=products.filter(p=>(!q||[p.code,p.name].some(x=>(x||'').toLowerCase().includes(q)))&&(!cat||p.category===cat));
-  document.getElementById('productsTableWrap').innerHTML=data.length
+  const _all=products.filter(p=>(!q||[p.code,p.name].some(x=>(x||'').toLowerCase().includes(q)))&&(!cat||p.category===cat));
+  const {page:_pg,pages:_pgs}=_mPageState('prod', q+'|'+cat, _all.length);
+  const data=_all.slice((_pg-1)*_MPP, _pg*_MPP);
+  document.getElementById('productsTableWrap').innerHTML=_all.length
     ?`<div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>Type</th><th>Name</th><th>Alias</th><th>Category</th><th>Default Supplier</th><th>Unit</th><th>Actions</th></tr></thead><tbody>
     ${data.map(p=>`<tr style="${p.parentCode?'background:#fafafe':''}">
     <td style="font-family:monospace;font-weight:700;color:${p.parentCode?'#7c3aed':'#1a73e8'};padding-left:${p.parentCode?'24px':'12px'}">
@@ -6568,7 +6600,7 @@ function renderProductsTable(){
       ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openProductModal(${p.id})">✏️ Edit</button>
       <button class="btn btn-danger btn-xs" onclick="delProduct(${p.id})">🗑</button>`:''}
     </div></td></tr>`).join('')}
-    </tbody></table></div>`
+    </tbody></table></div>${_mPager('prod',_pg,_pgs,_all.length)}`
     :`<div class="empty"><div class="ei">🗂</div><h3>No products found</h3></div>`;
 }
 function _pmSetType(type){
@@ -6660,12 +6692,14 @@ function setupCustActions(){
 }
 function renderCustomersTable(){
   const q=(document.getElementById('custSrch')?.value||'').toLowerCase();
-  const data=customers.filter(c=>!q||[c.name,c.contact,c.city,c.phone,c.salesExec,c.biller,c.manager].some(x=>(x||'').toLowerCase().includes(q)));
+  const _all=customers.filter(c=>!q||[c.name,c.contact,c.city,c.phone,c.salesExec,c.biller,c.manager].some(x=>(x||'').toLowerCase().includes(q)));
+  const {page:_pg,pages:_pgs}=_mPageState('cust', q, _all.length);
+  const data=_all.slice((_pg-1)*_MPP, _pg*_MPP);
   const orderCount=n=>orders.filter(o=>o.customer===n).length;
   const chip=(label,color,bg)=>label
     ?`<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;background:${bg};color:${color};white-space:nowrap">${label}</span>`
     :'<span style="color:#94a3b8;font-size:11px">—</span>';
-  document.getElementById('customersTableWrap').innerHTML=data.length
+  document.getElementById('customersTableWrap').innerHTML=_all.length
     ?`<div style="overflow-x:auto"><table><thead><tr>
         <th>#</th><th>Company Name</th><th>Contact</th><th>Phone</th><th>WhatsApp</th><th>City</th>
         <th>Sales Executive</th><th>Billing Person</th><th>Manager</th>
@@ -6689,7 +6723,7 @@ function renderCustomersTable(){
         ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openCustomerModal(${c.id})">✏️ Edit</button>
         <button class="btn btn-danger btn-xs" onclick="delCustomer(${c.id})">🗑</button>`:''}
       </div></td></tr>`).join('')}
-    </tbody></table></div>`
+    </tbody></table></div>${_mPager('cust',_pg,_pgs,_all.length)}`
     :`<div class="empty"><div class="ei">👥</div><h3>No customers found</h3></div>`;
 }
 function openCustomerModal(id=null){
@@ -6771,9 +6805,11 @@ function setupVendActions(){
 }
 function renderVendorsTable(){
   const q=(document.getElementById('vendSrch')?.value||'').toLowerCase();
-  const data=vendors.filter(v=>!q||[v.name,v.location,v.contact].some(x=>(x||'').toLowerCase().includes(q)));
+  const _all=vendors.filter(v=>!q||[v.name,v.location,v.contact].some(x=>(x||'').toLowerCase().includes(q)));
+  const {page:_pg,pages:_pgs}=_mPageState('vend', q, _all.length);
+  const data=_all.slice((_pg-1)*_MPP, _pg*_MPP);
   const orderCount=n=>orders.filter(o=>o.vendor===n).length;
-  document.getElementById('vendorsTableWrap').innerHTML=data.length
+  document.getElementById('vendorsTableWrap').innerHTML=_all.length
     ?`<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Company Name</th><th>Location</th><th>Delivery Days</th><th>Contact</th><th>Phone</th><th>WhatsApp</th><th>Orders</th><th>Actions</th></tr></thead><tbody>
     ${data.map(v=>`<tr><td style="color:#64748b;font-size:12px">${v.id}</td><td><strong>${v.name}</strong></td>
     <td style="font-size:12px">${v.location||'—'}</td>
@@ -6789,7 +6825,7 @@ function renderVendorsTable(){
       ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openVendorModal(${v.id})">✏️ Edit</button>
       <button class="btn btn-danger btn-xs" onclick="delVendor(${v.id})">🗑</button>`:''}
     </div></td></tr>`).join('')}
-    </tbody></table></div>`
+    </tbody></table></div>${_mPager('vend',_pg,_pgs,_all.length)}`
     :`<div class="empty"><div class="ei">🏭</div><h3>No vendors found</h3></div>`;
 }
 function openVendorModal(id=null){
@@ -6842,14 +6878,16 @@ function setupTransporterActions(){
 function renderTransportersTable(){
   const q=(document.getElementById('transporterSrch')?.value||'').toLowerCase();
   const typeF=(document.getElementById('transporterTypeFilter')?.value||'');
-  const data=transporters.filter(t=>{
+  const _all=transporters.filter(t=>{
     const matchQ=!q||[t.name,t.location,t.contact].some(x=>(x||'').toLowerCase().includes(q));
     const matchType=!typeF||t.type===typeF;
     return matchQ&&matchType;
   });
+  const {page:_pg,pages:_pgs}=_mPageState('trans', q+'|'+typeF, _all.length);
+  const data=_all.slice((_pg-1)*_MPP, _pg*_MPP);
   const cnt=document.getElementById('transporterCount');
   if(cnt)cnt.textContent=`(${transporters.length} total)`;
-  document.getElementById('transportersTableWrap').innerHTML=data.length
+  document.getElementById('transportersTableWrap').innerHTML=_all.length
     ?`<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Location</th><th style="text-align:center">Transit Days</th><th>Contact</th><th>Phone</th><th>WhatsApp</th><th>Notes</th><th>Actions</th></tr></thead><tbody>
     ${data.map(t=>`<tr>
       <td style="color:#64748b;font-size:12px">${t.id}</td>
@@ -6868,7 +6906,7 @@ function renderTransportersTable(){
         ${can('editMaster')?`<button class="btn btn-outline btn-xs" onclick="openTransporterModal(${t.id})">✏️ Edit</button>
         <button class="btn btn-danger btn-xs" onclick="delTransporter(${t.id})">🗑</button>`:''}
       </div></td></tr>`).join('')}
-    </tbody></table></div>`
+    </tbody></table></div>${_mPager('trans',_pg,_pgs,_all.length)}`
     :`<div class="empty"><div class="ei">🚛</div><h3>No transporters found</h3><p>Add your first transporter / truck vendor</p></div>`;
 }
 function openTransporterModal(id=null){

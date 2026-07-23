@@ -434,7 +434,7 @@ window.__API__ = (function () {
           <div id="prodHeaderActions"></div>
         </div>
         <div class="tbar">
-          <input class="srch" id="prodSrch" type="text" placeholder="🔍 Product code or name…" style="width:210px">
+          <input class="srch" id="prodSrch" type="text" placeholder="🔍 Product code or name…" style="width:210px" oninput="renderProductsTable()">
           <select class="fsel" id="prodCat"><option value="">All Categories</option>
             <option>Plywood</option><option>Veneer</option><option>MDF</option><option>Engineered</option><option>Other</option>
           </select>
@@ -454,7 +454,7 @@ window.__API__ = (function () {
           <div id="custHeaderActions"></div>
         </div>
         <div class="tbar">
-          <input class="srch" id="custSrch" type="text" placeholder="🔍 Name / phone / contact…" style="width:210px">
+          <input class="srch" id="custSrch" type="text" placeholder="🔍 Name / phone / contact…" style="width:210px" oninput="renderCustomersTable()">
           <select class="fsel" id="custCity"><option value="">All Cities</option></select>
           <button class="btn btn-primary btn-sm" onclick="renderCustomersTable()">🔍 Search</button>
           <button class="btn btn-outline btn-sm" onclick="clearCustFilters()">✕ Clear</button>
@@ -490,7 +490,7 @@ window.__API__ = (function () {
           <div id="transporterHeaderActions"></div>
         </div>
         <div class="tbar">
-          <input class="srch" id="transporterSrch" type="text" placeholder="🔍 Name / city…" style="width:210px">
+          <input class="srch" id="transporterSrch" type="text" placeholder="🔍 Name / city…" style="width:210px" oninput="renderTransportersTable()">
           <select class="fsel" id="transporterTypeFilter">
             <option value="">All Types</option>
             <option value="Transporter">Transporter</option>
