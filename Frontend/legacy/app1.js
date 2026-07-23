@@ -6217,9 +6217,21 @@ function autoFillVendor(){
 
 function saveOrder(){
   const isStock=document.getElementById('omIsStock')?.checked||false;
-  const cust=isStock?'STOCK':(document.getElementById('omCustVal').value||document.getElementById('omCust').value).trim();
+  const _editOrder=editingOrder?orders.find(x=>x.id===editingOrder):null;
+  // ── Customer must be a REAL, selected customer — reject free-typed text ──
+  let cust;
+  if(isStock){
+    cust='STOCK';
+  } else {
+    const typed=(document.getElementById('omCustVal').value||document.getElementById('omCust').value||'').trim();
+    if(!typed){ showToast('Please select a customer','error'); const el=document.getElementById('omCust'); if(el) el.focus(); return; }
+    const match=customers.find(c=>String(c.name).toLowerCase()===typed.toLowerCase());
+    const editingSame=_editOrder && String(_editOrder.customer||'').toLowerCase()===typed.toLowerCase();
+    if(!match && !editingSame){ showToast('❌ Please select a customer from the list — random text is not allowed','error'); const el=document.getElementById('omCust'); if(el){ el.focus(); el.select&&el.select(); } return; }
+    cust=match?match.name:typed;  // normalise to the master's canonical name
+  }
   const date=document.getElementById('omDate').value;
-  if(!cust||!date){showToast(isStock?'Please select an order date':'Please select a customer and order date','error');return;}
+  if(!date){showToast('Please select an order date','error');return;}
 
   // Validate: no product line can have a product without a quantity
   const badLine=_findIncompleteProductLine();
@@ -6240,6 +6252,15 @@ function saveOrder(){
   }).filter(l=>l.orderedCode&&l.qty>0);
 
   if(!lineData.length){showToast('Please add at least one product with quantity','error');return;}
+
+  // ── Every product must be a REAL, selected product — reject free-typed text ──
+  for(const l of lineData){
+    const codePart=String(l.orderedCode).split(' — ')[0].trim();
+    const p=products.find(x=>String(x.code).toLowerCase()===codePart.toLowerCase());
+    const editingSameProd=_editOrder && String(_editOrder.orderedCode||_editOrder.product||'').toLowerCase()===String(l.orderedCode).toLowerCase();
+    if(!p && !editingSameProd){ showToast(`❌ "${l.orderedCode}" is not a valid product — please pick one from the list`,'error'); return; }
+    if(p){ l.orderedCode=p.code; l.prod=p.parentCode||p.code; }
+  }
 
   // Get supplier: from first line's product defaultVendor, or hidden field
   const getVendor=(prodCode)=>{
