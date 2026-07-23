@@ -124,6 +124,8 @@
     const _ls=document.getElementById('loginScreen'); if(_ls) _ls.style.display='none';
     const _ap=document.getElementById('app');         if(_ap) _ap.style.display='block';
     const _ov=document.getElementById('appLoader');   if(_ov) _ov.classList.remove('show');
+    /* Build the shell (lands on dashboard; the hash router in app4 keeps the
+       URL in sync). Data streams in behind the skeleton. */
     try{ if(typeof _origInitApp==='function') _origInitApp.call(window); }catch(e){console.warn('initApp:',e);}
     _showSkeletons();
   }
@@ -342,6 +344,8 @@
         try{ await _mastersP; }catch(e){}
         try{ await _pollOrders(); }catch(e){}   /* full orders, dirty-preserving re-render */
         try{ _restorePending(); }catch(e){}
+        /* one-time localStorage->DB migration (no-op once done / when server has data) */
+        try{ if(typeof _migrateFromLocalStorage==='function') await _migrateFromLocalStorage(); }catch(e){}
         try{ if(typeof populateDropdowns==='function') populateDropdowns(); }catch(e){} /* masters now loaded */
         _refreshAfterLoad();
         /* persist the fully-loaded data to localStorage (skipped during instant reveal) */
@@ -563,31 +567,24 @@
         if(rl && typeof getRoleLabel==='function') rl.textContent=getRoleLabel(usr.role);
       }catch(ex){}
 
-      /* Show app shell + loading indicator immediately */
-      _showLoadingOverlay();
+      /* Reveal the app IMMEDIATELY with skeletons (same as fresh login); data
+         streams in behind and _loadAll(true) migrates + persists when done. */
+      _revealInstant();
+      if(typeof _startPoll==='function') _startPoll();
+      _loadAll(true);
 
-      /* Load data from API, migrate localStorage if needed, then render */
-      _loadAll()
-        .then(()=>_migrateFromLocalStorage())
-        .then(()=>{
-          _renderApp(); /* sets _dataReady=true, calls _origInitApp */
-          /* Validate JWT quietly in background */
-          _req('GET','/api/auth/me').then(r=>{
-            const au=r.user;
-            let u2=users.find(u=>u.username===au.username);
-            if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2._id=au._id; /* do NOT overwrite sequential u2.id */ }
-            localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
-          }).catch(e=>{
-            if(e.status===401){
-              localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
-              _authReady=false; window.doLogout ? window.doLogout() : location.reload();
-            }
-          });
-        })
-        .catch(()=>{
-          /* _loadAll failed (Railway down) — still render with whatever localStorage has */
-          _renderApp();
-        });
+      /* Validate JWT quietly in the background — log out only on an explicit 401 */
+      _req('GET','/api/auth/me').then(r=>{
+        const au=r.user;
+        let u2=users.find(u=>u.username===au.username);
+        if(u2){ u2.role=au.role; u2.name=au.name||au.username; u2._id=au._id; /* do NOT overwrite sequential u2.id */ }
+        localStorage.setItem(_USR_KEY,JSON.stringify({id:au._id||au.id,username:au.username,name:au.name||au.username,role:au.role,permissions:au.permissions||[]}));
+      }).catch(e=>{
+        if(e.status===401){
+          localStorage.removeItem(_JWT_KEY); localStorage.removeItem(_USR_KEY);
+          _authReady=false; window.doLogout ? window.doLogout() : location.reload();
+        }
+      });
       return;
     }
 
