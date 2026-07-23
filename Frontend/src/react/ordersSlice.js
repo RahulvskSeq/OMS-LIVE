@@ -29,6 +29,9 @@ export function toLocalOrder(o) {
     salesExec: o.salesExec || '',
     createdBy: o.createdBy || '',
     updatedAt: o.updatedAt || '',
+    purchVoucherNo: o.purchVoucherNo || o.physGrnNo || '',
+    grnBy: o.grnBy || '',
+    product2: o.product || '',
   };
 }
 
