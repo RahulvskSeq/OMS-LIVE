@@ -168,6 +168,8 @@ resetAdminIfRequested();
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
+  // Auto-advance In Transit → At Transporter when transit days elapse.
+  try { require('./jobs/autoTransit').startAutoTransit(); } catch (e) { console.warn('auto-transit start failed:', e.message); }
 });
 
 module.exports = app;
