@@ -141,8 +141,20 @@ global.__sseNotify = () => {
 // The standalone frontend lives in ../Frontend/index.html. Serving it from the
 // API origin means the browser hits the same host for both the page and /api.
 const FRONTEND_DIR = path.join(__dirname, '..', 'Frontend');
-app.use(express.static(FRONTEND_DIR));
-app.get('/', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'index.html')));
+app.use(express.static(FRONTEND_DIR, {
+  // Always revalidate the app code so a new deploy is picked up on the next
+  // load WITHOUT a manual hard-refresh. ETag/Last-Modified make the revalidation
+  // a cheap 304 when unchanged; only changed files are re-downloaded. Without
+  // this, browsers heuristically cache app*.js and keep running stale code
+  // (e.g. an old sync that reverts status changes) until the cache expires.
+  setHeaders: (res, filePath) => {
+    if (/\.(html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
+app.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
+});
 
 app.use(notFound);
 app.use(errorHandler);
