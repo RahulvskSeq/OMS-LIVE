@@ -6180,6 +6180,12 @@ function openOrderModal(id=null){
   ['omPo','omRemark'].forEach(i=>document.getElementById(i).value='');
   const _rw=document.getElementById('omRemarkVoiceWarning');if(_rw)_rw.style.display='none';
   document.getElementById('omDate').value=today();
+  // Dispatch Date — settable at creation/edit for management roles only (admin/manager/superadmin)
+  const _canDispatch=['superadmin','admin','manager'].includes(currentUser.role);
+  const _dispWrap=document.getElementById('omDispatchWrap');
+  const _dispInp=document.getElementById('omDispatchDate');
+  if(_dispWrap) _dispWrap.style.display=_canDispatch?'':'none';
+  if(_dispInp) _dispInp.value='';
   // Reset stock toggle
   const stockChk=document.getElementById('omIsStock');
   if(stockChk){stockChk.checked=false;_toggleStockMode(false);}
@@ -6246,6 +6252,7 @@ function openOrderModal(id=null){
     if(custNote&&donLineCount>1) custNote.textContent=`⚠️ This DON has ${donLineCount} lines — changing customer will update all of them`;
     document.getElementById('omVend').value=o.vendor;
     document.getElementById('omDate').value=o.orderDate;
+    if(_dispInp) _dispInp.value=o.dispatchDate||'';
     document.getElementById('omPo').value=o.poNum||'';
     document.getElementById('omRemark').value=''; // new comment goes here; existing thread shown in 💬 modal
     const _cmEdit=customers.find(c=>c.name===o.customer);
@@ -6299,6 +6306,9 @@ function saveOrder(){
   }
   const date=document.getElementById('omDate').value;
   if(!date){showToast('Please select an order date','error');return;}
+  // Dispatch Date — only management roles can set it; null = leave unchanged (non-management)
+  const _canDispatch=['superadmin','admin','manager'].includes(currentUser.role);
+  const dispatchDate=_canDispatch?(document.getElementById('omDispatchDate')?.value||''):null;
 
   // Validate: no product line can have a product without a quantity
   const badLine=_findIncompleteProductLine();
@@ -6395,6 +6405,7 @@ function saveOrder(){
       // Keep original qty (the split covers the addition); if qty reduced just update
       o.qty=canSplit&&qtyDiff>0?oldQty:newQty;
       o.orderDate=date;o.eta=newEta;
+      if(dispatchDate!==null) o.dispatchDate=dispatchDate; // management only
       o.poNum=document.getElementById('omPo').value;
       const editRemark=document.getElementById('omRemark').value.trim();
       o.remark=editRemark||o.remark; // keep backward compat
@@ -6462,6 +6473,7 @@ function saveOrder(){
         comments:remark?[{text:remark,by:currentUser.name||currentUser.username,at:new Date().toISOString()}]:[],
         trail:[],
         createdBy:currentUser.username,
+        ...(dispatchDate?{dispatchDate}:{}),
         ...(isStock?{isStockOrder:true}:{})
       };
       trailLog(newOrd,'created',isStock?'Stock order created':'Order created','',newOrd.status,`${line.orderedCode||line.prod} × ${line.qty}`);
