@@ -2636,25 +2636,24 @@ function renderDispatchPendingBySupplier(){
   const map={};
   getVisibleOrders().forEach(o=>{
     if(!PRE.includes(o.status))return;
+    if(!isDelayed(o))return;                 // only orders past their Supplier Dispatch Date
     const v=o.vendor||'(No Supplier)';
-    if(!map[v]) map[v]={vendor:v,count:0,qty:0,delayed:0};
-    map[v].count++; map[v].qty+=Number(o.qty)||0; if(isDelayed(o)) map[v].delayed++;
+    if(!map[v]) map[v]={vendor:v,delayed:0,qty:0};
+    map[v].delayed++; map[v].qty+=Number(o.qty)||0;
   });
-  const list=Object.values(map).sort((a,b)=>(b.delayed-a.delayed)||(b.count-a.count));
+  const list=Object.values(map).sort((a,b)=>b.delayed-a.delayed);
   const lbl=document.getElementById('dispatchPendingLabel');
-  const totalPending=list.reduce((s,x)=>s+x.count,0);
   const totalDelayed=list.reduce((s,x)=>s+x.delayed,0);
-  if(lbl) lbl.textContent=`${totalPending} awaiting dispatch · ${totalDelayed} delayed · ${list.length} suppliers`;
-  if(!list.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ Nothing awaiting dispatch</div>'; return; }
+  if(lbl) lbl.textContent=`${totalDelayed} delayed · ${list.length} supplier${list.length===1?'':'s'}`;
+  if(!list.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ No delayed dispatches</div>'; return; }
   el.innerHTML=list.slice(0,12).map(s=>`
     <div onclick="openSupplierPopup('${s.vendor.replace(/'/g,"\\'")}','pending')"
-      style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid ${s.delayed?'#fecaca':'#e2e8f0'};background:${s.delayed?'#fff5f5':'#fafafa'};cursor:pointer;margin-bottom:5px;overflow:hidden"
-      onmouseover="this.style.borderColor='#0891b2'" onmouseout="this.style.borderColor='${s.delayed?'#fecaca':'#e2e8f0'}'">
+      style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid #fecaca;background:#fff5f5;cursor:pointer;margin-bottom:5px;overflow:hidden"
+      onmouseover="this.style.borderColor='#dc2626'" onmouseout="this.style.borderColor='#fecaca'">
       <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">🏭 ${s.vendor}</div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        ${s.delayed?`<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:10px;white-space:nowrap">⚠ ${s.delayed} delayed</span>`:''}
         <span style="font-size:10px;color:#64748b;font-weight:600;white-space:nowrap">${s.qty} units</span>
-        <span style="font-size:14px;font-weight:800;color:#0891b2;line-height:1">${s.count}</span>
+        <span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 9px;border-radius:10px;white-space:nowrap">⚠ ${s.delayed} delayed</span>
       </div>
     </div>`).join('')+(list.length>12?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px">+${list.length-12} more suppliers</div>`:'');
 }
