@@ -796,6 +796,7 @@
   let _syncTimer=null;
   let _syncing=false;   /* semaphore — prevents concurrent POST duplicates */
   let _syncQueued=false; /* if a sync was requested while one was running, run again after */
+  let _lastSaveErrAt=0;  /* throttle for the "couldn't save" toast */
   const _snap={};
   const _localTouch={}; /* id → last local-change time (ms); guards recent edits from stale-read reverts */
   const _verSeen={};    /* id → the server updatedAt our current view/edit is based on.
@@ -808,7 +809,7 @@
     _syncing=true; _syncQueued=false;
     try{
       for(const o of orders){
-        const cur=JSON.stringify(o);
+        let cur=JSON.stringify(o);
         if(_snap[o.id]===cur) continue;
         try{
           if(!o._id){
@@ -846,7 +847,17 @@
                change to a field we didn't touch (e.g. their status update). */
             const base=_snap[o.id]?JSON.parse(_snap[o.id]):null;
             const payload=base?_deltaAPI(base,o):_toAPI(o);
-            if(Object.keys(payload).length) await _req('PUT','/api/orders/'+o._id,payload);
+            if(Object.keys(payload).length){
+              const r=await _req('PUT','/api/orders/'+o._id,payload);
+              /* Adopt the server's fresh version stamp the instant the write returns —
+                 but only if no concurrent local edit slipped in during the request.
+                 This makes the poll's version-guard converge immediately, so a status
+                 you just saved is confirmed in the DB and can never be reverted by a
+                 later stale/cached read (no wait for the next poll to observe it). */
+              if(r&&r.data&&r.data.updatedAt&&JSON.stringify(o)===cur){
+                o.updatedAt=r.data.updatedAt; _verSeen[o.id]=r.data.updatedAt; cur=JSON.stringify(o);
+              }
+            }
           }
           // If the order changed while the request was in flight (e.g. you approved
           // right after creating it), the server only has the OLD state. Do NOT mark
@@ -857,7 +868,16 @@
           }else{
             _syncQueued=true;
           }
-        }catch(e){console.warn('order sync:',e);}
+        }catch(e){
+          console.warn('order sync:',e);
+          /* Make a failed save visible — the change stays pending and retries, but
+             the user must know it isn't in the DB yet. Throttled; skip auth errors. */
+          if(e&&e.status!==401){
+            const _n=Date.now();
+            if(_n-_lastSaveErrAt>8000){ _lastSaveErrAt=_n;
+              if(typeof showToast==='function') showToast('⚠️ Couldn’t save to server — will retry','warning'); }
+          }
+        }
       }
     }finally{
       _syncing=false;
