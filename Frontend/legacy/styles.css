@@ -611,3 +611,7 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 .mpager-btns{display:flex;align-items:center;gap:8px}
 .mpager-page{font-size:12px;color:#334155;font-weight:700;min-width:78px;text-align:center}
 .mpager .btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ═══════════════ PREMIUM LINE ICONS ═══════════════ */
+.pico{width:18px;height:18px;flex-shrink:0;display:block}
+.nav-item .ni,.nav-group-header .ni{display:inline-flex;align-items:center;justify-content:center}

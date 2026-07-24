@@ -687,6 +687,31 @@ function initApp(){
   setTimeout(_initScrollPagers, 300);
 }
 
+// Premium line-icon set (Lucide-style). Self-contained SVGs, stroke inherits
+// the nav text colour via currentColor; sized by CSS (.ni svg).
+const _sv=(inner)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pico">${inner}</svg>`;
+const ICONS={
+  dashboard:_sv('<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>'),
+  orders:_sv('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><path d="M8 11h8M8 15h6"/>'),
+  send:_sv('<path d="m22 2-7 20-4-9-9-4 20-7z"/><path d="M22 2 11 13"/>'),
+  truck:_sv('<path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v4c0 .6-.4 1-1 1h-2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>'),
+  package:_sv('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'),
+  file:_sv('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M8 13h8M8 17h6"/>'),
+  factory:_sv('<path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M7 18h.01M12 18h.01M17 18h.01"/>'),
+  clock:_sv('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6M22 6l-3-3"/>'),
+  warehouse:_sv('<path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12M6 14h12"/>'),
+  clipcheck:_sv('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><path d="m9 14 2 2 4-4"/>'),
+  money:_sv('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
+  check:_sv('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>'),
+  ban:_sv('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>'),
+  grid:_sv('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
+  users:_sv('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  chart:_sv('<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7" rx="1"/><rect x="12" y="7" width="3" height="11" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/>'),
+  building:_sv('<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4"/>'),
+  shield:_sv('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>'),
+  user:_sv('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>'),
+  settings:_sv('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
+};
 function buildSidebar(){
   const nav=document.getElementById('sbNav');
   const _vo=getVisibleOrders();
@@ -694,41 +719,41 @@ function buildSidebar(){
   const raisedCnt=_vo.filter(o=>o.status==='PO Raised').length;
   const hasMasterAccess=can('editMaster');
 
-  const dashItem={id:'dashboard', icon:'⚡', label:'Dashboard', always:true};
+  const dashItem={id:'dashboard', icon:ICONS.dashboard, label:'Dashboard', always:true};
   const phase1Items=[
-    {id:'orders',      icon:'📋', label:'Orders',           always:true},
-    {id:'vendorpo',    icon:'📤', label:'Supplier PO',        role:'raisePo'},
-    {id:'intransit',   icon:'🚚', label:'Mark In Transit',  role:'transitUpdate'},
+    {id:'orders',      icon:ICONS.orders, label:'Orders',           always:true},
+    {id:'vendorpo',    icon:ICONS.send, label:'Supplier PO',        role:'raisePo'},
+    {id:'intransit',   icon:ICONS.truck, label:'Mark In Transit',  role:'transitUpdate'},
   ];
   const pendingItems=[
-    {id:'pending-don', icon:'📦', label:'Pending DONs', role:'viewPendingDon'},
-    {id:'pending-vpo', icon:'📄', label:'Pending SPOs', role:'viewPendingSpo'},
-    {id:'pending-supplier', icon:'🏭', label:'By Supplier', role:'viewPendingDon'},
-    {id:'pending-delayed', icon:'⏰', label:'Delayed Dispatch', role:'viewPendingDon'},
+    {id:'pending-don', icon:ICONS.package, label:'Pending DONs', role:'viewPendingDon'},
+    {id:'pending-vpo', icon:ICONS.file, label:'Pending SPOs', role:'viewPendingSpo'},
+    {id:'pending-supplier', icon:ICONS.factory, label:'By Supplier', role:'viewPendingDon'},
+    {id:'pending-delayed', icon:ICONS.clock, label:'Delayed Dispatch', role:'viewPendingDon'},
   ];
   const phase2Items=[
-    {id:'ship-intransit',   icon:'🚚', label:'In Transit',     status:'In Transit',    role:'viewShipments'},
-    {id:'ship-transporter', icon:'🚛', label:'At Transporter', status:'At Transporter',role:'viewShipments'},
-    {id:'ship-warehouse',   icon:'🏭', label:'Warehouse',      status:'Warehouse',     role:'viewShipments'},
+    {id:'ship-intransit',   icon:ICONS.truck, label:'In Transit',     status:'In Transit',    role:'viewShipments'},
+    {id:'ship-transporter', icon:ICONS.warehouse, label:'At Transporter', status:'At Transporter',role:'viewShipments'},
+    {id:'ship-warehouse',   icon:ICONS.factory, label:'Warehouse',      status:'Warehouse',     role:'viewShipments'},
   ];
   const phase3Items=[
-    {id:'deliv-grn',        icon:'📋', label:'GRN',       status:'GRN',       role:'viewDelivery'},
-    {id:'deliv-purchased',  icon:'💰', label:'Purchased',  status:'Purchased',  role:'viewDelivery'},
-    {id:'deliv-billed',     icon:'✅', label:'Billed',     status:'Billed',     role:'viewDelivery'},
-    {id:'deliv-cancelled',  icon:'🚫', label:'Cancelled',  status:'Cancelled',  role:'viewDelivery'},
+    {id:'deliv-grn',        icon:ICONS.clipcheck, label:'GRN',       status:'GRN',       role:'viewDelivery'},
+    {id:'deliv-purchased',  icon:ICONS.money, label:'Purchased',  status:'Purchased',  role:'viewDelivery'},
+    {id:'deliv-billed',     icon:ICONS.check, label:'Billed',     status:'Billed',     role:'viewDelivery'},
+    {id:'deliv-cancelled',  icon:ICONS.ban, label:'Cancelled',  status:'Cancelled',  role:'viewDelivery'},
   ];
   const masterItems=[
-    {id:'products',    icon:'🗂', label:'Products'},
-    {id:'customers',   icon:'👥', label:'Customers'},
-    {id:'vendors',     icon:'🏭', label:'Suppliers'},
-    {id:'transporters',icon:'🚛', label:'Transporters'},
+    {id:'products',    icon:ICONS.grid, label:'Products'},
+    {id:'customers',   icon:ICONS.users, label:'Customers'},
+    {id:'vendors',     icon:ICONS.factory, label:'Suppliers'},
+    {id:'transporters',icon:ICONS.truck, label:'Transporters'},
   ];
   const bottomItems=[
-    {id:'reports',     icon:'📈', label:'Reports',            role:'viewReports'},
-    {id:'departments', icon:'🏢', label:'Departments',         superadmin:true},
-    {id:'roles',       icon:'🔐', label:'Role Management',    role:'manageRoles'},
-    {id:'users',       icon:'👤', label:'User Management',    role:'manageUsers'},
-    {id:'backend',     icon:'⚙️', label:'Backend / Settings', superadmin:true},
+    {id:'reports',     icon:ICONS.chart, label:'Reports',            role:'viewReports'},
+    {id:'departments', icon:ICONS.building, label:'Departments',         superadmin:true},
+    {id:'roles',       icon:ICONS.shield, label:'Role Management',    role:'manageRoles'},
+    {id:'users',       icon:ICONS.user, label:'User Management',    role:'manageUsers'},
+    {id:'backend',     icon:ICONS.settings, label:'Backend / Settings', superadmin:true},
   ];
 
   const masterPages=['products','customers','vendors','transporters'];
@@ -846,14 +871,14 @@ function buildSidebar(){
   html+=makeItem(dashItem,'ph1');
 
   // ── Orders group
-  html+=grp('pre','📋','Orders','#3b82f6',
+  html+=grp('pre',ICONS.orders,'Orders','#3b82f6',
     phase1Items.filter(i=>i.always||(i.role&&can(i.role))).map(i=>makeItem(i,'ph1')),
     'ph1','pre');
 
   // ── Shipments
   const shipVisible=phase2Items.filter(i=>can(i.role));
   if(shipVisible.length){
-    html+=grp('ship','🚚','Shipments','#8b5cf6',
+    html+=grp('ship',ICONS.truck,'Shipments','#8b5cf6',
       shipVisible.map(i=>makeItem(i,'ph2')),
       'ph2','ship');
   }
@@ -861,7 +886,7 @@ function buildSidebar(){
   // ── Delivery
   const delivVisible=phase3Items.filter(i=>can(i.role));
   if(delivVisible.length){
-    html+=grp('deliv','🎯','Delivery','#10b981',
+    html+=grp('deliv',ICONS.check,'Delivery','#10b981',
       delivVisible.map(i=>makeItem(i,'ph3')),
       'ph3','deliv');
   }
@@ -869,14 +894,14 @@ function buildSidebar(){
   // ── Pending (show only if user can view at least one)
   const pendingVisible=pendingItems.filter(i=>can(i.role));
   if(pendingVisible.length){
-    html+=grp('pending','⏳','Pending','#1a73e8',
+    html+=grp('pending',ICONS.clock,'Pending','#1a73e8',
       pendingVisible.map(i=>makeItem(i,'ph1')),
       'ph1','pending');
   }
 
   // ── Masters (collapsible)
   if(hasMasterAccess){
-    html+=grp('masters','📚','Masters','#94a3b8',
+    html+=grp('masters',ICONS.grid,'Masters','#94a3b8',
       masterItems.map(i=>makeItem(i,'')),
       '','masters');
   }
