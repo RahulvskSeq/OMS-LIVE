@@ -1981,7 +1981,7 @@ function renderPendingPage(){
           <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
             <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">
               <th style="${th}">DON</th><th style="${th}">Customer / Product</th><th style="${th}">Supplier</th>
-              <th style="${th}">Order Date</th><th style="${th}">Dispatch By</th>
+              <th style="${th}">Order Date</th><th style="${th}">Supplier Dispatch Date</th>
               <th style="${th};text-align:center">Overdue</th><th style="${th}">Stage</th>
             </tr></thead>
             <tbody>${items.map(({o,disp,overdue})=>{
@@ -4484,7 +4484,7 @@ function renderOrderTable(data, mini=false, ns=''){
   // sortable col definitions: [label, sortKey]  — labels go through _getLabel() for customisation
   const colDefs=mini
     ? [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],[_getLabel('col.eta'),'eta'],[_getLabel('col.status'),'status']]
-    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Dispatch By','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
+    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Supplier Dispatch Date','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
   const thHtml=colDefs.map(([label,key])=>{
     if(!key||mini)return`<th>${label}</th>`;
     const active=ordersSortCol===key;
@@ -6601,7 +6601,7 @@ function viewOrder(id){
       ${can('viewVendor')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Vendor</span><div>${o.vendor}${v?` <span style="color:#64748b;font-size:11px">(${v.deliveryDays}d, ${v.location})</span>`:''}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Quantity</span><div style="font-weight:700">${o.qty} units</div></div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Order Date</span><div>${fmt(o.orderDate)}</div></div>
-      ${(o.dispatchDate&&_canSeeDispatch())?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Dispatch By</span><div style="color:#b45309;font-weight:700">🚚 ${_fmtDispatch(o.dispatchDate)}</div></div>`:''}
+      ${(o.dispatchDate&&_canSeeDispatch())?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Supplier Dispatch Date</span><div style="color:#b45309;font-weight:700">🚚 ${_fmtDispatch(o.dispatchDate)}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">ETA Bangalore</span>${_canEditEta?`<div style="margin-top:3px"><input type="date" value="${o.eta||''}" onchange="_viewSetEta(${o.id}, this.value)" title="Change ETA date" style="padding:5px 9px;border:1.5px solid #1a73e8;border-radius:8px;font-size:13px;font-weight:600;color:#1e293b;outline:none;box-sizing:border-box"></div>`:`<div>${fmt(o.eta)||'—'}</div>`}</div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Customer Ref</span><div style="color:#1a73e8;font-weight:600">${o.poNum||'—'}</div></div>
       ${can('viewBiller')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Assigned Biller</span><div>${o.biller||'—'}</div></div>`:''}
@@ -10305,7 +10305,7 @@ function renderVendorPO(){
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">SKU / Product</th>
             <th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Qty</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Order Date</th>
-            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Dispatch By</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Supplier Dispatch Date</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">ETA Bangalore</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Remark</th>
           </tr></thead>
