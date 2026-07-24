@@ -1142,8 +1142,11 @@ const DASH_ROLE_DEFAULTS={
 let _dashPrefsStore=(()=>{try{const s=localStorage.getItem(LS_DASH_PREFS);return s?JSON.parse(s):{}}catch(e){return{};}})();
 function _saveDashPrefs(){try{localStorage.setItem(LS_DASH_PREFS,JSON.stringify(_dashPrefsStore));}catch(e){}}
 function _getEffDashPrefs(){
-  if(!currentUser)return {pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1};
-  const prefs=_dashPrefsStore[currentUser.id]||DASH_ROLE_DEFAULTS[currentUser.role]||{pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,etaedited:1,recent:1};
+  // Spreading the defaults first means any card missing from a saved/role pref
+  // set (e.g. a newly-added card) defaults to visible instead of hidden.
+  const _def={pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,dispatchpending:1,etaedited:1,recent:1};
+  if(!currentUser)return _def;
+  const prefs={..._def, ...(_dashPrefsStore[currentUser.id]||DASH_ROLE_DEFAULTS[currentUser.role]||{})};
   // Biller and salesman never see SPO card; billers always see Dealer Summary
   if(currentUser.role==='biller') return {...prefs,spo:0,dealer:1,supplier:0};
   if(currentUser.role==='salesman') return {...prefs,spo:0,supplier:0};
@@ -1190,6 +1193,7 @@ const _DEFAULT_DASH_ROWS=[
   {cols:2, cards:['lr','don']},
   {cols:2, cards:['spo','dealer']},
   {cols:1, cards:['supplier']},
+  {cols:1, cards:['dispatchpending']},
   {cols:1, cards:['etaedited']},
   {cols:1, cards:['recent']},
 ];
@@ -1202,7 +1206,16 @@ let _dashRowsStore=(()=>{
 function _getDashRows(){
   if(!currentUser) return _DEFAULT_DASH_ROWS.map(r=>({...r,cards:[...r.cards]}));
   const stored=_dashRowsStore[currentUser.id];
-  if(Array.isArray(stored)&&stored.length>0) return stored.map(r=>({...r,cards:[...r.cards]}));
+  if(Array.isArray(stored)&&stored.length>0){
+    const rows=stored.map(r=>({...r,cards:[...r.cards]}));
+    // Append any default card missing from the saved layout, so newly-added
+    // dashboard cards show up for users who already customised their layout.
+    const present=new Set(rows.flatMap(r=>r.cards));
+    _DEFAULT_DASH_ROWS.forEach(dr=>dr.cards.forEach(c=>{
+      if(!present.has(c)){ rows.push({cols:1,cards:[c]}); present.add(c); }
+    }));
+    return rows;
+  }
   return _DEFAULT_DASH_ROWS.map(r=>({...r,cards:[...r.cards]}));
 }
 
