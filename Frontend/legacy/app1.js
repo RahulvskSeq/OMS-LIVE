@@ -3435,7 +3435,7 @@ function openDealerPopup(custName){
         </td>
         <td style="padding:11px 10px;text-align:center;font-weight:700">${o.qty}</td>
         <td style="padding:11px 14px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+          <div>${fmtWithDay(o.orderDate)}</div>
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -4484,7 +4484,7 @@ function renderOrderTable(data, mini=false, ns=''){
   // sortable col definitions: [label, sortKey]  — labels go through _getLabel() for customisation
   const colDefs=mini
     ? [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],[_getLabel('col.eta'),'eta'],[_getLabel('col.status'),'status']]
-    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
+    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Dispatch By','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
   const thHtml=colDefs.map(([label,key])=>{
     if(!key||mini)return`<th>${label}</th>`;
     const active=ordersSortCol===key;
@@ -4539,10 +4539,14 @@ function renderOrderTable(data, mini=false, ns=''){
       </div>`:''}
     </td>
     <td style="font-size:12px;white-space:nowrap">
-      <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+      <div>${fmtWithDay(o.orderDate)}</div>
       ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
       ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
     </td>
+    ${(!mini&&_canSeeDispatch())?`<td style="white-space:nowrap">
+      <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
+        style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff">
+    </td>`:''}
     <td style="font-size:12px">${buildEtaCell(o)}</td>
     <td style="white-space:nowrap">
       ${buildStatusDropdown(o)}${buildNextStageBtn(o)}
@@ -9190,7 +9194,7 @@ function renderShipments(){
         <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:13px">${o.qty}</td>
         <!-- Order Date -->
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+          <div>${fmtWithDay(o.orderDate)}</div>
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -9555,7 +9559,7 @@ function renderDeliveries(){
         </td>
         <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:13px">${o.qty}</td>
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+          <div>${fmtWithDay(o.orderDate)}</div>
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -10261,7 +10265,7 @@ function renderVendorPO(){
           <span style="font-weight:700">${o.qty}</span>
         </td>
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+          <div>${fmtWithDay(o.orderDate)}</div>
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -10550,7 +10554,7 @@ function renderCustSearch(){
         <td style="font-size:12px"><div style="font-weight:600">${o.product}</div>${o.poNum?`<div style="font-size:11px;color:#1a73e8;font-weight:700">${o.poNum}</div>`:''}</td>
         <td style="text-align:center">${o.qty}</td>
         <td style="font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
+          <div>${fmtWithDay(o.orderDate)}</div>
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
