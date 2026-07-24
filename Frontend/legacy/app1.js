@@ -3435,7 +3435,7 @@ function openDealerPopup(custName){
         </td>
         <td style="padding:11px 10px;text-align:center;font-weight:700">${o.qty}</td>
         <td style="padding:11px 14px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>
+          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -4327,6 +4327,18 @@ function renderOrdersJourney(filteredData){
   pf.innerHTML=html;
 }
 
+// Format a YYYY-MM-DD dispatch date as DD/MM/YY.
+function _fmtDispatch(dd){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dd||'').trim());
+  return m?`${m[3]}/${m[2]}/${m[1].slice(2)}`:(dd||'');
+}
+function _canSeeDispatch(){ return ['superadmin','admin','manager'].includes(currentUser&&currentUser.role); }
+// Small "Dispatch: DD/MM/YY" line shown under the Order Date wherever it appears —
+// visible to management roles only (admin / manager / superadmin).
+function _dispatchLine(o){
+  if(!o||!o.dispatchDate||!_canSeeDispatch()) return '';
+  return `<div style="font-size:10px;color:#b45309;font-weight:700;margin-top:3px;white-space:nowrap">🚚 Dispatch: ${_fmtDispatch(o.dispatchDate)}</div>`;
+}
 function renderOrdersTable(){
   _ordersLoadedCount=0; // reset infinite scroll position on every fresh render
   renderOrderKpis();
@@ -4527,7 +4539,7 @@ function renderOrderTable(data, mini=false, ns=''){
       </div>`:''}
     </td>
     <td style="font-size:12px;white-space:nowrap">
-      <div>${fmtWithDay(o.orderDate)}</div>
+      <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
       ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
       ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
     </td>
@@ -6585,6 +6597,7 @@ function viewOrder(id){
       ${can('viewVendor')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Vendor</span><div>${o.vendor}${v?` <span style="color:#64748b;font-size:11px">(${v.deliveryDays}d, ${v.location})</span>`:''}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Quantity</span><div style="font-weight:700">${o.qty} units</div></div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Order Date</span><div>${fmt(o.orderDate)}</div></div>
+      ${(o.dispatchDate&&_canSeeDispatch())?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Dispatch By</span><div style="color:#b45309;font-weight:700">🚚 ${_fmtDispatch(o.dispatchDate)}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">ETA Bangalore</span>${_canEditEta?`<div style="margin-top:3px"><input type="date" value="${o.eta||''}" onchange="_viewSetEta(${o.id}, this.value)" title="Change ETA date" style="padding:5px 9px;border:1.5px solid #1a73e8;border-radius:8px;font-size:13px;font-weight:600;color:#1e293b;outline:none;box-sizing:border-box"></div>`:`<div>${fmt(o.eta)||'—'}</div>`}</div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Customer Ref</span><div style="color:#1a73e8;font-weight:600">${o.poNum||'—'}</div></div>
       ${can('viewBiller')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Assigned Biller</span><div>${o.biller||'—'}</div></div>`:''}
@@ -9177,7 +9190,7 @@ function renderShipments(){
         <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:13px">${o.qty}</td>
         <!-- Order Date -->
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>
+          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -9542,7 +9555,7 @@ function renderDeliveries(){
         </td>
         <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:13px">${o.qty}</td>
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>
+          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -10248,7 +10261,7 @@ function renderVendorPO(){
           <span style="font-weight:700">${o.qty}</span>
         </td>
         <td style="padding:10px 12px;font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>
+          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
@@ -10537,7 +10550,7 @@ function renderCustSearch(){
         <td style="font-size:12px"><div style="font-weight:600">${o.product}</div>${o.poNum?`<div style="font-size:11px;color:#1a73e8;font-weight:700">${o.poNum}</div>`:''}</td>
         <td style="text-align:center">${o.qty}</td>
         <td style="font-size:12px;white-space:nowrap">
-          <div>${fmtWithDay(o.orderDate)}</div>
+          <div>${fmtWithDay(o.orderDate)}</div>${_dispatchLine(o)}
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
