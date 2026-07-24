@@ -792,8 +792,27 @@
         if(_snap[o.id]===cur) continue;
         try{
           if(!o._id){
+            const _oldId=o.id, _oldGroup=o.groupDonId;
             const r=await _req('POST','/api/orders',_toAPI(o)); /* create: send full */
-            if(r.data){o._id=r.data._id;o.id=r.data.seqId||o.id;}
+            if(r.data){
+              o._id=r.data._id;
+              o.id=r.data.seqId||o.id;
+              /* The DON (groupDonId) was assigned from a LOCAL nextOrderId counter,
+                 which is identical for every user who loaded at the same time — so
+                 two users stamp the same DON. Adopt this order's server-assigned
+                 (globally unique) seqId as the DON for its whole group. Only the
+                 group PRIMARY (the line whose DON == its own local id) drives this;
+                 split/added lines carry an existing real DON and are left alone. */
+              if(_oldGroup===_oldId && o.id!==_oldGroup){
+                const _newGroup=o.id;
+                orders.forEach(x=>{
+                  if((x.groupDonId||x.id)===_oldGroup){
+                    x.groupDonId=_newGroup;
+                    if(x!==o) _snap[x.id]=null; /* re-sync siblings with the new DON */
+                  }
+                });
+              }
+            }
           }else{
             /* PUT only the fields changed since our last sync — never a full
                stale snapshot — so we can't revert another user's concurrent
