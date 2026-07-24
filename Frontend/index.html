@@ -211,7 +211,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashRecentPurchCard">
             <div class="dash-ch" style="padding:7px 16px 6px;gap:10px;flex-wrap:wrap">
               <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">💰 Purchased</span>
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>Purchased</span>
                 <span id="recentPurchTotal" style="font-size:10px;color:#94a3b8;font-weight:600"></span>
               </div>
               <div style="display:flex;gap:6px">
@@ -228,7 +228,7 @@ window.__API__ = (function () {
         <div class="dash-cw span2" data-card="due" data-fixed="true" data-span="2">
           <div class="dash-card" id="dashDueCard">
             <div class="dash-ch" style="gap:8px;flex-wrap:nowrap;align-items:center;padding:6px 12px">
-              <div style="font-size:12px;font-weight:800;color:#1e293b;white-space:nowrap;flex-shrink:0">📅 Due Orders</div>
+              <div style="font-size:12px;font-weight:800;color:#1e293b;white-space:nowrap;flex-shrink:0"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Due Orders</div>
               <div class="due-tabs-wrap" style="flex:1;justify-content:center">
                 <button id="dueTabOverdue"  class="due-tab" onclick="_setDueTab('overdue')"  style="background:#dc2626;color:#fff">🔴 Overdue</button>
                 <button id="dueTabToday"    class="due-tab" onclick="_setDueTab('today')"    style="background:transparent;color:#94a3b8">🟡 Today</button>
@@ -246,7 +246,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashLrCard">
             <div class="dash-ch" style="padding:7px 16px 6px;gap:10px;flex-wrap:wrap">
               <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">🧾 LR at Transporter</span>
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1.5L6 22l2-1.5L8 22l2-1.5L10 22l2-1.5L12 22l2-1.5L14 22l2-1.5L16 22l2-1.5L18 22V2l-2 1.5L14 2l-2 1.5L10 2 8 3.5 6 2 4 3.5z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>LR at Transporter</span>
                 <span id="lrCardTotal" style="font-size:10px;color:#94a3b8;font-weight:600"></span>
               </div>
               <label style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#64748b;cursor:pointer;white-space:nowrap;flex-shrink:0">
@@ -264,7 +264,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashDonCard">
             <div class="dash-ch">
               <div style="min-width:0">
-                <div class="dash-ct">📦 Pending DONs</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>Pending DONs</div>
                 <div class="dash-cs" id="dashDonSubtitle"></div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -289,7 +289,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashVpoCard">
             <div class="dash-ch">
               <div style="min-width:0">
-                <div class="dash-ct">📄 Pending SPOs</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="M8 13h8M8 17h6"/></svg>Pending SPOs</div>
                 <div class="dash-cs" id="dashVpoSubtitle"></div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -314,7 +314,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashDealerCard">
             <div class="dash-ch">
               <div>
-                <div class="dash-ct">🏪 Dealer Summary</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Dealer Summary</div>
                 <div class="dash-cs" id="dpsTotalLabel"></div>
               </div>
               <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
@@ -336,7 +336,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashSupplierCard">
             <div class="dash-ch">
               <div>
-                <div class="dash-ct">🏭 Supplier Summary</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M7 18h.01M12 18h.01M17 18h.01"/></svg>Supplier Summary</div>
                 <div class="dash-cs" id="spsTotalLabel"></div>
               </div>
               <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
@@ -357,7 +357,7 @@ window.__API__ = (function () {
           <div class="dash-card">
             <div class="dash-ch">
               <div>
-                <div class="dash-ct">⏰ Delayed Dispatch by Supplier</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6M22 6l-3-3"/></svg>Delayed Dispatch by Supplier</div>
                 <div class="dash-cs" id="dispatchPendingLabel"></div>
               </div>
               <button class="btn btn-outline btn-sm" onclick="navTo('pending-delayed')" style="font-size:11px;white-space:nowrap">⏰ View Delayed →</button>
@@ -371,7 +371,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashEtaEditedCard">
             <div class="dash-ch" style="padding:8px 16px 6px;gap:10px;flex-wrap:nowrap;align-items:center;border-bottom:none">
               <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap">📅 ETA Edited Orders</span>
+                <span style="font-size:14px;font-weight:800;color:#1e293b;white-space:nowrap"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6M16 2v4M8 2v4M3 10h18"/><circle cx="18" cy="18" r="4"/><path d="M18 16.5V18l1 1"/></svg>ETA Edited Orders</span>
               </div>
               <div style="display:flex;gap:4px;flex-shrink:0">
                 <button id="etaTabAll"      onclick="_setEtaTab('all')"      style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:#e2e8f0;color:#64748b;transition:all .15s">All</button>
@@ -393,7 +393,7 @@ window.__API__ = (function () {
           <div class="dash-card" id="dashRecentCard">
             <div class="dash-ch">
               <div>
-                <div class="dash-ct">📋 Recent Orders</div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><path d="M8 11h8M8 15h6"/></svg>Recent Orders</div>
                 <div class="dash-cs" id="dashCount"></div>
               </div>
               <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;overflow:hidden;transition:border-color .15s">
