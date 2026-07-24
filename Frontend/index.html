@@ -350,6 +350,20 @@ window.__API__ = (function () {
           </div>
         </div>
 
+        <!-- Dispatch Pending by Supplier — orders awaiting dispatch (pre-transit), delayed flagged -->
+        <div class="dash-cw span2" data-card="dispatchpending" data-fixed="true" data-span="2">
+          <div class="dash-card">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct">🚚 Dispatch Pending by Supplier</div>
+                <div class="dash-cs" id="dispatchPendingLabel"></div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="navTo('pending-delayed')" style="font-size:11px;white-space:nowrap">⏰ View Delayed →</button>
+            </div>
+            <div id="dispatchPendingList" class="dash-cb" style="padding:8px 12px"></div>
+          </div>
+        </div>
+
         <!-- ETA Edited / Material Status card -->
         <div class="dash-cw span2" data-card="etaedited" data-fixed="true" data-span="2">
           <div class="dash-card" id="dashEtaEditedCard">

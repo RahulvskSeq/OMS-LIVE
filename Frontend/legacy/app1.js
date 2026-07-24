@@ -1660,6 +1660,7 @@ function renderDashboard(){
   // Dealer + Supplier summary + orders table
   renderDealerSummary();
   renderSupplierSummary();
+  renderDispatchPendingBySupplier();
   renderDashOrders();
 
   // Apply per-user section visibility prefs (role defaults or custom)
@@ -2607,6 +2608,42 @@ function renderSupplierSummary(){
     el.innerHTML=`<div>${page.map(card).join('')}</div>`;
 
  _renderCardPager('supplierSummaryPager',_spsPage,totalPages,'_spsPrev','_spsNext');
+}
+
+// Dashboard card: orders still awaiting dispatch (pre-transit: Order / Approved /
+// PO Raised — NOT yet In Transit) grouped by supplier, with the ones past their
+// Supplier Dispatch Date flagged as delayed. Sorted worst-first (most delayed,
+// then most pending). Click a supplier to see its pending orders.
+function renderDispatchPendingBySupplier(){
+  const el=document.getElementById('dispatchPendingList');
+  if(!el)return;
+  const PRE=['Order','Approved','PO Raised'];
+  const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const isDelayed=o=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(o.dispatchDate||'').trim()); return m?today>new Date(+m[1],+m[2]-1,+m[3]):false; };
+  const map={};
+  getVisibleOrders().forEach(o=>{
+    if(!PRE.includes(o.status))return;
+    const v=o.vendor||'(No Supplier)';
+    if(!map[v]) map[v]={vendor:v,count:0,qty:0,delayed:0};
+    map[v].count++; map[v].qty+=Number(o.qty)||0; if(isDelayed(o)) map[v].delayed++;
+  });
+  const list=Object.values(map).sort((a,b)=>(b.delayed-a.delayed)||(b.count-a.count));
+  const lbl=document.getElementById('dispatchPendingLabel');
+  const totalPending=list.reduce((s,x)=>s+x.count,0);
+  const totalDelayed=list.reduce((s,x)=>s+x.delayed,0);
+  if(lbl) lbl.textContent=`${totalPending} awaiting dispatch · ${totalDelayed} delayed · ${list.length} suppliers`;
+  if(!list.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ Nothing awaiting dispatch</div>'; return; }
+  el.innerHTML=list.slice(0,12).map(s=>`
+    <div onclick="openSupplierPopup('${s.vendor.replace(/'/g,"\\'")}','pending')"
+      style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid ${s.delayed?'#fecaca':'#e2e8f0'};background:${s.delayed?'#fff5f5':'#fafafa'};cursor:pointer;margin-bottom:5px;overflow:hidden"
+      onmouseover="this.style.borderColor='#0891b2'" onmouseout="this.style.borderColor='${s.delayed?'#fecaca':'#e2e8f0'}'">
+      <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">🏭 ${s.vendor}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${s.delayed?`<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:10px;white-space:nowrap">⚠ ${s.delayed} delayed</span>`:''}
+        <span style="font-size:10px;color:#64748b;font-weight:600;white-space:nowrap">${s.qty} units</span>
+        <span style="font-size:14px;font-weight:800;color:#0891b2;line-height:1">${s.count}</span>
+      </div>
+    </div>`).join('')+(list.length>12?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px">+${list.length-12} more suppliers</div>`:'');
 }
 
 function openSupplierPopup(vendorName, group){
