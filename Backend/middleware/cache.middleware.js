@@ -7,6 +7,8 @@
  * so a cache hit is never stale after a write on this instance.
  */
 const store = new Map(); // key -> { val, exp }
+let generation = 0;      // bumped on every invalidate; guards against caching a
+                         // read that a concurrent write already superseded.
 
 function get(key) {
   const e = store.get(key);
@@ -28,10 +30,17 @@ function cacheGet(prefix, ttlMs) {
     const key = prefix + '::' + req.originalUrl;
     const hit = get(key);
     if (hit) { res.set('X-Cache', 'HIT'); return res.json(hit); }
+    const genAtEntry = generation;
     const orig = res.json.bind(res);
     res.json = (body) => {
-      try { if (body && body.success !== false) set(key, body, ttlMs); } catch (e) { /* ignore */ }
-      res.set('X-Cache', 'MISS');
+      try {
+        // Only cache if NO write invalidated this data while we were reading it.
+        // Otherwise a slow read that began before a concurrent write could finish
+        // afterwards and re-poison the cache with pre-write (stale) data — the exact
+        // race that made a just-approved order snap back to its old status.
+        if (body && body.success !== false && generation === genAtEntry) set(key, body, ttlMs);
+      } catch (e) { /* ignore */ }
+      res.set('X-Cache', generation === genAtEntry ? 'MISS' : 'BYPASS');
       return orig(body);
     };
     next();
@@ -45,7 +54,7 @@ function invalidate(...prefixes) {
     if (req.method === 'GET') return next();
     const orig = res.json.bind(res);
     res.json = (body) => {
-      try { if (body && body.success !== false) prefixes.forEach((p) => clear(p)); } catch (e) { /* ignore */ }
+      try { if (body && body.success !== false) { generation++; prefixes.forEach((p) => clear(p)); } } catch (e) { /* ignore */ }
       return orig(body);
     };
     next();

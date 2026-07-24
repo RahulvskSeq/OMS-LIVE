@@ -252,7 +252,7 @@
     }
     orders=_deduped.map(_toLocal);
     if(orders.length>0) nextOrderId=Math.max(...orders.map(o=>typeof o.id==='number'?o.id:0))+1;
-    orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); }); /* seed snap */
+    orders.forEach(o=>{ _snap[o.id]=JSON.stringify(o); if(o.updatedAt) _verSeen[o.id]=o.updatedAt; }); /* seed snap + version baseline */
   }
 
   /* Restore any pending local (offline) changes over the freshly-loaded orders. */
@@ -727,11 +727,26 @@
         const _gNow=Date.now();
         orders=fresh.map(f=>{
           const _fid=String(f.id);
-          // Keep the LOCAL copy if it's unsynced OR was changed locally in the last 20s.
-          // This stops a stale server read (e.g. DB replica lag, or a slower server when
-          // several people are working) from silently reverting a change you just made.
-          const _recent=_localTouch[_fid]&&(_gNow-_localTouch[_fid]<20000);
-          if(localDirty.has(_fid)||_recent){const local=orders.find(o=>String(o.id)===_fid);return local||f;}
+          const _local=orders.find(o=>String(o.id)===_fid);
+          // (1) Unsynced local change — our write hasn't been confirmed by the server
+          //     yet, so never let a poll clobber it.
+          if(localDirty.has(_fid)) return _local||f;
+          // (2) We changed this order recently. A cached or replica-lagged read can
+          //     still return the PRE-edit row and would visibly revert us (e.g. Approved
+          //     snapping back to Order). Only accept the server copy once its version
+          //     (updatedAt) has actually moved PAST the version our edit was based on —
+          //     meaning the server truly reflects a newer write (ours or someone else's).
+          //     Same-old updatedAt == stale read → keep local. Server-vs-server compare,
+          //     so immune to client/server clock skew. 120s hard backstop against a stuck
+          //     baseline (a genuinely dropped write is still protected by branch 1).
+          const _touched=_localTouch[_fid];
+          if(_touched && (_gNow-_touched<120000)){
+            const _base=_verSeen[_fid], _fv=f.updatedAt;
+            const _advanced=_base&&_fv&&(new Date(_fv).getTime()>new Date(_base).getTime());
+            if(!_advanced) return _local||f;
+          }
+          // Accept the server copy; adopt its version as our new baseline.
+          if(f.updatedAt) _verSeen[_fid]=f.updatedAt;
           _snap[f.id]=JSON.stringify(f);
           return f;
         });
@@ -783,6 +798,11 @@
   let _syncQueued=false; /* if a sync was requested while one was running, run again after */
   const _snap={};
   const _localTouch={}; /* id → last local-change time (ms); guards recent edits from stale-read reverts */
+  const _verSeen={};    /* id → the server updatedAt our current view/edit is based on.
+                           A poll only overwrites a locally-changed order once the server's
+                           updatedAt moves PAST this baseline — i.e. the server genuinely has
+                           a newer write. A stale/cached read (same old updatedAt) can never
+                           revert us. Compares server-vs-server, so no clock-skew risk. */
   async function _syncOrders(){
     if(_syncing){ _syncQueued=true; return; }
     _syncing=true; _syncQueued=false;
@@ -851,7 +871,12 @@
     /* Mark all dirty orders as pending BEFORE async sync — survives refresh */
     try{
       const dirtyIds=orders.filter(o=>!_snap[o.id]||_snap[o.id]!==JSON.stringify(o)).map(o=>o.id);
-      if(dirtyIds.length){ _markPending(dirtyIds); const _t=Date.now(); dirtyIds.forEach(id=>{ _localTouch[id]=_t; }); }
+      if(dirtyIds.length){ _markPending(dirtyIds); const _t=Date.now(); dirtyIds.forEach(id=>{
+        _localTouch[id]=_t;
+        /* Record the server version this edit is layered on top of (if not already
+           tracking one) so a later poll knows when the server has truly moved past it. */
+        if(_verSeen[id]==null){ const _o=orders.find(x=>x.id===id); if(_o&&_o.updatedAt) _verSeen[id]=_o.updatedAt; }
+      }); }
     }catch(e){}
     clearTimeout(_syncTimer);
     _syncOrders(); /* fire-and-forget; semaphore prevents concurrent duplicates */
