@@ -4429,9 +4429,10 @@ function renderOrdersTable(){
     if(_spoActiveFilter&&(o.vendorPoNum||'')!==_spoActiveFilter) return false;
     // pending-only filter (from View Orders on Pending DON/SPO pages)
     if(_pendingOnlyFilter&&['Billed','Cancelled'].includes(o.status)) return false;
-    // Hide completed (Billed) orders from the main list — they live in
-    // Delivery → Billed. Still findable via the Status column filter = Billed.
-    if(o.status==='Billed' && !(colFilters['status']||'').toLowerCase().includes('billed')) return false;
+    // Hide completed orders (Billed / Cancelled) from the main list AND from
+    // search — they live in Delivery → Billed / Cancelled. Still findable only
+    // when the Status column filter explicitly targets that status.
+    if((o.status==='Billed'||o.status==='Cancelled') && !(colFilters['status']||'').toLowerCase().includes(o.status.toLowerCase())) return false;
     return m&&inFrom&&inTo&&colMatch&&liveMatch;
   });
   // Update stock filter button
