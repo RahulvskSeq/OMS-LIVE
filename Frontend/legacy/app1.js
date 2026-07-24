@@ -1624,20 +1624,18 @@ function renderDashboard(){
   STATUSES.forEach(s=>counts[s]=0);
   myOrders.forEach(o=>{if(counts[o.status]!==undefined)counts[o.status]++;});
 
-  // Premium line icon + colour per stage
-  const STAGE_ICON={
-    'Order':ICONS.orders,'Approved':ICONS.check,'PO Raised':ICONS.file,
-    'In Transit':ICONS.truck,'At Transporter':ICONS.warehouse,'Warehouse':ICONS.factory,
-    'GRN':ICONS.clipcheck,'Purchased':ICONS.money,'Billed':ICONS.check
+  // Emoji per stage
+  const STAGE_EMOJI={
+    'Order':'📋','Approved':'✅','PO Raised':'📄',
+    'In Transit':'🚚','At Transporter':'🚛','Warehouse':'🏭',
+    'Purchased':'💰','Billed':'📦'
   };
-  const STAGE_ICOL={'Order':'#3b82f6','Approved':'#0ea5e9','PO Raised':'#6366f1','In Transit':'#f97316','At Transporter':'#f59e0b','Warehouse':'#8b5cf6','GRN':'#d97706','Purchased':'#10b981','Billed':'#16a34a'};
 
   let pipeHTML='';
   STATUSES.forEach((s,i)=>{
     const cnt=counts[s];
     const hasOrders=cnt>0;
-    const icon=STAGE_ICON[s]||ICONS.package;
-    const icol=STAGE_ICOL[s]||'#64748b';
+    const emoji=STAGE_EMOJI[s]||'📌';
     const labelCol=hasOrders?'#1e293b':'#cbd5e1';
     const labelWeight=hasOrders?'800':'500';
     const nodeOpacity=hasOrders?'1':'0.35';
@@ -1647,7 +1645,7 @@ function renderDashboard(){
       onmouseover="this.style.opacity='1';this.style.transform='translateY(-2px)'"
       onmouseout="this.style.opacity='${nodeOpacity}';this.style.transform=''">
       <div style="position:relative;display:inline-flex;align-items:center;justify-content:center">
-        <span class="pipe-ico" style="color:${icol};display:inline-flex">${icon}</span>
+        <span style="font-size:32px;line-height:1">${emoji}</span>
         ${hasOrders?`<span style="position:absolute;top:-6px;right:-10px;background:#1a73e8;color:#fff;font-size:10px;font-weight:900;border-radius:20px;padding:1px 5px;min-width:18px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.2)">${cnt}</span>`:''}
       </div>
       <span style="font-size:9px;font-weight:${labelWeight};color:${labelCol};text-align:center;max-width:62px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1">${s}</span>

@@ -617,4 +617,3 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 .nav-item .ni,.nav-group-header .ni{display:inline-flex;align-items:center;justify-content:center}
 /* inline header/label line icons */
 .hico{width:17px;height:17px;vertical-align:-3px;margin-right:5px;flex-shrink:0}
-.pipe-ico .pico{width:30px;height:30px}
