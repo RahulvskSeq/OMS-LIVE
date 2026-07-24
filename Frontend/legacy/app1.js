@@ -2647,7 +2647,7 @@ function renderDispatchPendingBySupplier(){
   if(lbl) lbl.textContent=`${totalDelayed} delayed · ${list.length} supplier${list.length===1?'':'s'}`;
   if(!list.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ No delayed dispatches</div>'; return; }
   el.innerHTML=list.slice(0,12).map(s=>`
-    <div onclick="openSupplierPopup('${s.vendor.replace(/'/g,"\\'")}','pending')"
+    <div onclick="openSupplierPopup('${s.vendor.replace(/'/g,"\\'")}','delayed')"
       style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;border:1px solid #fecaca;background:#fff5f5;cursor:pointer;margin-bottom:5px;overflow:hidden"
       onmouseover="this.style.borderColor='#dc2626'" onmouseout="this.style.borderColor='#fecaca'">
       <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">🏭 ${s.vendor}</div>
@@ -2658,14 +2658,25 @@ function renderDispatchPendingBySupplier(){
     </div>`).join('')+(list.length>12?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px">+${list.length-12} more suppliers</div>`:'');
 }
 
+function _dispDelayInfo(o){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(o.dispatchDate||'').trim());
+  if(!m) return null;
+  const disp=new Date(+m[1],+m[2]-1,+m[3]);
+  const n=new Date(); const today=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+  if(today<=disp) return null;
+  return { date:`${m[3]}/${m[2]}/${m[1].slice(2)}`, overdue:Math.round((today-disp)/86400000) };
+}
 function openSupplierPopup(vendorName, group){
   // group: 'pending' (Order/Approved/PO Raised), 'after' (In Transit → Purchased),
-  // or undefined = both (used by the dashboard Supplier Summary card).
+  // 'delayed' (pending + past Supplier Dispatch Date), or undefined = both.
   const _PEND=['Order','Approved','PO Raised'];
   const _AFT=['In Transit','At Transporter','Warehouse','GRN','Purchased'];
-  const pendingStages = group==='pending'?_PEND : group==='after'?_AFT : _PEND.concat(_AFT);
-  const _label = group==='after'?'After Transit' : 'Pending Orders';
-  const ords=getVisibleOrders().filter(o=>(o.vendor||'(No Supplier)')===vendorName&&pendingStages.includes(o.status)).sort((a,b)=>new Date(a.eta||0)-new Date(b.eta||0));
+  const _delayedMode = group==='delayed';
+  const pendingStages = group==='pending'||_delayedMode?_PEND : group==='after'?_AFT : _PEND.concat(_AFT);
+  const _label = _delayedMode?'Delayed Dispatch' : group==='after'?'After Transit' : 'Pending Orders';
+  let ords=getVisibleOrders().filter(o=>(o.vendor||'(No Supplier)')===vendorName&&pendingStages.includes(o.status));
+  if(_delayedMode) ords=ords.filter(o=>_dispDelayInfo(o));
+  ords=ords.sort((a,b)=>new Date(a.eta||0)-new Date(b.eta||0));
   const totalQty=ords.reduce((s,o)=>s+(Number(o.qty)||0),0);
   document.getElementById('spTitle').textContent='🏭 '+vendorName+' — '+_label;
   document.getElementById('spSubtitle').textContent=ords.length+' order'+(ords.length!==1?'s':'')+' · '+totalQty+' units total';
@@ -2706,7 +2717,7 @@ function openSupplierPopup(vendorName, group){
         <td style="padding:11px 14px;font-size:11px;font-family:monospace">
           ${o.grnNo?`<div style="font-weight:700;color:#d97706">${o.grnNo}</div>${o.grnDate?`<div style="color:#64748b;font-size:10px">${_fmtDDMMYY(o.grnDate)}</div>`:''}` :'<span style="color:#cbd5e1">—</span>'}
         </td>
-        <td style="padding:11px 14px;font-size:12px">${buildEtaCell(o)}</td>
+        <td style="padding:11px 14px;font-size:12px">${buildEtaCell(o)}${(()=>{const di=_dispDelayInfo(o);return di?`<div style="margin-top:3px;font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;border-radius:8px;padding:2px 7px;display:inline-block;white-space:nowrap">⚠ Dispatch ${di.date} · ${di.overdue}d late</div>`:'';})()}</td>
         <td style="padding:11px 14px">
           <span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${sc}22;color:${sc}">${o.status}</span>
         </td>
