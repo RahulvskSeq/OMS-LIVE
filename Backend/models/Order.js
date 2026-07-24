@@ -47,6 +47,7 @@ const orderSchema = new mongoose.Schema({
   orderDate:      { type: Date, required: true, default: Date.now },
   eta:            { type: String },
   etaBangalore:   { type: String },
+  dispatchDate:   { type: String, default: '' }, // user-set expected supplier dispatch date (YYYY-MM-DD)
 
   // Status
   status: {

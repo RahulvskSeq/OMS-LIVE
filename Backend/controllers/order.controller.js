@@ -129,7 +129,7 @@ exports.updateOrder = async (req, res, next) => {
     // Scalar fields — apply all that changed (do NOT block on a strict whitelist)
     const scalarFields = [
       'customer','customerId','product','productId','orderedCode','qty','vendor','supplierId',
-      'orderDate','eta','etaBangalore','notes','purchaseRate','sellingRate','unit',
+      'orderDate','eta','etaBangalore','dispatchDate','notes','purchaseRate','sellingRate','unit',
       'status','poNum','vendorPoNum','biller','salesExec',
       'lr','lrDate','transporter','transporterId','transitMode','transitForm',
       'vendorInvoiceNum','vendorInvoiceDate','vendorInvoice','transitDays',

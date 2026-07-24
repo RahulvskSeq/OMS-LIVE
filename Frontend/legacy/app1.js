@@ -1919,40 +1919,21 @@ function _syncPendingTabBtns(){
   }
 }
 
-/* ── Delayed Dispatch from Supplier ──────────────────────────────────────────
-   An order still awaiting dispatch (Order / Approved / PO Raised — NOT yet
-   In Transit) is "delayed" when more days have passed than the supplier's
-   promised lead time (Supplier master → Delivery Days). Counted from the date
-   the order reached "PO Raised" (the supplier's clock starts when they get the
-   PO), falling back to the Order Date if it never reached PO Raised. */
-function _hasPoRaised(o){ return Array.isArray(o.trail)&&o.trail.some(t=>t.type==='status'&&t.to==='PO Raised'); }
-function _poRaisedDate(o){
-  if(Array.isArray(o.trail)){
-    const es=o.trail.filter(t=>t.type==='status'&&t.to==='PO Raised'&&t.at).sort((a,b)=>new Date(a.at)-new Date(b.at));
-    if(es.length) return new Date(es[0].at);
-  }
-  return o.orderDate?new Date(o.orderDate):null;
-}
-function _supplierLeadDays(vendorName){
-  const v=vendors.find(x=>x.name===vendorName);
-  const d=v?parseInt(v.deliveryDays):0;
-  return (d>0)?d:0;
-}
+/* ── Delayed Dispatch ─────────────────────────────────────────────────────────
+   An order still awaiting dispatch (Order / Approved / PO Raised — NOT yet In
+   Transit) is "delayed" once today is PAST the user-entered Dispatch Date (set
+   in the Supplier PO list). Orders with no dispatch date are not flagged; once
+   an order moves to In Transit or beyond it drops off automatically. */
 function _getDelayedDispatch(){
   const PRE=['Order','Approved','PO Raised'];
   const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const out=[];
   getVisibleOrders().forEach(o=>{
-    if(!PRE.includes(o.status)) return;              // must still be awaiting dispatch
-    const days=_supplierLeadDays(o.vendor);
-    if(!days) return;                                // no supplier lead time → can't judge
-    const baseRaw=_poRaisedDate(o);
-    if(!baseRaw||isNaN(baseRaw)) return;
-    const base=new Date(baseRaw.getFullYear(),baseRaw.getMonth(),baseRaw.getDate());
-    const deadline=new Date(base); deadline.setDate(deadline.getDate()+days);
-    if(today>deadline){                              // promised days exceeded, still not dispatched
-      out.push({o,days,base,overdue:Math.round((today-deadline)/86400000),fromPo:_hasPoRaised(o)});
-    }
+    if(!PRE.includes(o.status)) return;             // not yet dispatched (pre-transit)
+    const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((o.dispatchDate||'').trim());
+    if(!m) return;                                  // no dispatch date set → not flagged
+    const disp=new Date(+m[1],+m[2]-1,+m[3]);
+    if(today>disp) out.push({o,disp,overdue:Math.round((today-disp)/86400000)});
   });
   out.sort((a,b)=>b.overdue-a.overdue);
   return out;
@@ -1988,7 +1969,7 @@ function renderPendingPage(){
   const stageColor=s=>STAGE_COLOR[s]||'#64748b';
 
   if(_pendingTab==='delayed'){
-    // ── Delayed Dispatch: pre-transit orders past their supplier's promised days ──
+    // ── Delayed Dispatch: pre-transit orders past their user-set Dispatch Date ──
     let items=_getDelayedDispatch();
     if(q) items=items.filter(({o})=>[o.customer,o.product,o.orderedCode,o.vendor,'don-'+(o.groupDonId||o.id)].some(x=>String(x||'').toLowerCase().includes(q)));
     if(subtitle) subtitle.textContent=`${items.length} delayed dispatch${items.length===1?'':'es'}`;
@@ -1996,28 +1977,29 @@ function renderPendingPage(){
     const th='padding:9px 12px;font-size:10px;color:#64748b;text-transform:uppercase';
     el.innerHTML=items.length
       ?`<div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:11px 16px;background:#fef2f2;border-bottom:1px solid #fee2e2;font-size:12px;color:#b91c1c;font-weight:700">⏰ Not dispatched within the supplier's promised days — counted from PO Raised (or Order Date)</div>
+          <div style="padding:11px 16px;background:#fef2f2;border-bottom:1px solid #fee2e2;font-size:12px;color:#b91c1c;font-weight:700">⏰ Dispatch date has passed and the order is still not In Transit</div>
           <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
             <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">
               <th style="${th}">DON</th><th style="${th}">Customer / Product</th><th style="${th}">Supplier</th>
-              <th style="${th};text-align:center">Given</th><th style="${th}">PO Raised</th>
+              <th style="${th}">Order Date</th><th style="${th}">Dispatch By</th>
               <th style="${th};text-align:center">Overdue</th><th style="${th}">Stage</th>
             </tr></thead>
-            <tbody>${items.map(({o,days,base,overdue,fromPo})=>{
+            <tbody>${items.map(({o,disp,overdue})=>{
               const sc=STAGE_COLOR[o.status]||'#64748b';
+              const od=o.orderDate?new Date(o.orderDate):null;
               return `<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="viewOrder(${o.id})">
                 <td style="padding:9px 12px;font-family:monospace;font-weight:800;font-size:11px;white-space:nowrap">DON-${o.groupDonId||o.id}</td>
                 <td style="padding:9px 12px"><strong style="font-size:13px">${o.customer}</strong><div style="font-size:11px;color:#64748b">${o.orderedCode||o.product||''}</div></td>
                 <td style="padding:9px 12px;font-size:12px">${o.vendor||'—'}</td>
-                <td style="padding:9px 12px;text-align:center"><span style="background:#fef3c7;color:#92400e;font-weight:800;font-size:11px;padding:2px 8px;border-radius:8px">${days}d</span></td>
-                <td style="padding:9px 12px;font-size:12px;white-space:nowrap">${fmt(base)}${fromPo?'':' <span style="font-size:9px;color:#94a3b8">(order date)</span>'}</td>
+                <td style="padding:9px 12px;font-size:12px;white-space:nowrap">${fmt(od)}</td>
+                <td style="padding:9px 12px;font-size:12px;white-space:nowrap;font-weight:700;color:#b45309">${fmt(disp)}</td>
                 <td style="padding:9px 12px;text-align:center"><span style="background:#fee2e2;color:#dc2626;font-weight:800;font-size:11px;padding:2px 9px;border-radius:10px;white-space:nowrap">⚠ ${overdue}d late</span></td>
                 <td style="padding:9px 12px"><span style="background:${sc}18;color:${sc};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${o.status}</span></td>
               </tr>`;
             }).join('')}</tbody>
           </table></div>
         </div>`
-      :`<div class="card"><div style="text-align:center;padding:48px;color:#94a3b8;font-size:15px">✅ No delayed dispatches — every awaiting order is within its supplier's promised days</div></div>`;
+      :`<div class="card"><div style="text-align:center;padding:48px;color:#94a3b8;font-size:15px">✅ No delayed dispatches — set a Dispatch Date on the Supplier PO page; any order past it that isn't In Transit shows here</div></div>`;
     return;
   }
 
@@ -10154,6 +10136,18 @@ function copyVPOSummary(vpoNum, btn){
   }).catch(()=>showToast('Could not copy','error'));
 }
 
+// Set the user-entered expected dispatch date on an order (from the Supplier PO
+// list). Syncs to the server and refreshes the Delayed Dispatch badge/count.
+function _setDispatchDate(id, val){
+  const o=orders.find(x=>x.id===id);
+  if(!o) return;
+  o.dispatchDate=val||'';
+  if(typeof persistOrders==='function') persistOrders();
+  if(typeof buildSidebar==='function') buildSidebar();
+  if(typeof _syncPendingTabBtns==='function') _syncPendingTabBtns();
+  if(typeof showToast==='function') showToast(val?'Dispatch date set — '+val:'Dispatch date cleared','success');
+}
+
 function renderVendorPO(){
   const approved=orders.filter(o=>o.status==='Approved');
   const raised=orders.filter(o=>o.status==='PO Raised');
@@ -10246,6 +10240,10 @@ function renderVendorPO(){
           ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
+        <td style="padding:10px 12px;white-space:nowrap">
+          <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
+            style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff" title="Set expected dispatch date — shows in Delayed Dispatch if it passes and the order isn't In Transit">
+        </td>
         <td style="padding:10px 12px;font-size:12px">${buildEtaCell(o)}</td>
         <td style="padding:10px 12px;font-size:12px;color:#64748b">
           ${o.remark?`<span style="color:#374151">${o.remark}</span>`:'<span style="color:#cbd5e1">—</span>'}
@@ -10278,6 +10276,7 @@ function renderVendorPO(){
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">SKU / Product</th>
             <th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Qty</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Order Date</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Dispatch By</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">ETA Bangalore</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Remark</th>
           </tr></thead>
