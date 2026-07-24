@@ -793,7 +793,14 @@
         try{
           if(!o._id){
             const _oldId=o.id, _oldGroup=o.groupDonId;
-            const r=await _req('POST','/api/orders',_toAPI(o)); /* create: send full */
+            const _api=_toAPI(o); /* create: send full */
+            /* The DON of a brand-new group is a LOCAL guess (nextOrderId), which is
+               identical for every user who loaded together — so two users stamp the
+               same DON. For the group PRIMARY (groupDonId === its own local id), drop
+               the guess so the backend stamps its globally-unique seqId as the DON.
+               Split/added lines carry an already-real shared DON and keep it. */
+            if(_oldGroup===_oldId) _api.groupDonId=null;
+            const r=await _req('POST','/api/orders',_api);
             if(r.data){
               o._id=r.data._id;
               o.id=r.data.seqId||o.id;
