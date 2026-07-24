@@ -615,4 +615,3 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 /* ═══════════════ PREMIUM LINE ICONS ═══════════════ */
 .pico{width:18px;height:18px;flex-shrink:0;display:block}
 .nav-item .ni,.nav-group-header .ni{display:inline-flex;align-items:center;justify-content:center}
-.pipe-ico .pico{width:30px;height:30px}
