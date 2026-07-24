@@ -613,5 +613,5 @@ tr[id^="don-body-"].open,tr[id^="spo-body-"].open{display:table-row}
 .mpager .btn[disabled]{opacity:.45;cursor:not-allowed}
 
 /* ═══════════════ PREMIUM LINE ICONS ═══════════════ */
-.pico{font-size:16px;line-height:1;width:18px;text-align:center;flex-shrink:0}
+.pico{width:18px;height:18px;flex-shrink:0;display:block}
 .nav-item .ni,.nav-group-header .ni{display:inline-flex;align-items:center;justify-content:center}
