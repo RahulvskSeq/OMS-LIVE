@@ -1169,7 +1169,7 @@ function _saveDashPrefs(){try{localStorage.setItem(LS_DASH_PREFS,JSON.stringify(
 function _getEffDashPrefs(){
   // Spreading the defaults first means any card missing from a saved/role pref
   // set (e.g. a newly-added card) defaults to visible instead of hidden.
-  const _def={pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,dispatchpending:1,etaedited:1,recent:1};
+  const _def={pipeline:1,recentpurch:1,lr:1,due:1,don:1,spo:1,dealer:1,supplier:1,dispatchpending:1,delaydetail:1,etaedited:1,recent:1};
   if(!currentUser)return _def;
   const prefs={..._def, ...(_dashPrefsStore[currentUser.id]||DASH_ROLE_DEFAULTS[currentUser.role]||{})};
   // Biller and salesman never see SPO card; billers always see Dealer Summary
@@ -1219,6 +1219,7 @@ const _DEFAULT_DASH_ROWS=[
   {cols:2, cards:['spo','dealer']},
   {cols:1, cards:['supplier']},
   {cols:1, cards:['dispatchpending']},
+  {cols:1, cards:['delaydetail']},
   {cols:1, cards:['etaedited']},
   {cols:1, cards:['recent']},
 ];
@@ -1699,6 +1700,7 @@ function renderDashboard(){
   renderDealerSummary();
   renderSupplierSummary();
   renderDispatchPendingBySupplier();
+  renderDelayDetailTable();
   renderDashOrders();
 
   // Apply per-user section visibility prefs (role defaults or custom)
@@ -2652,6 +2654,44 @@ function renderSupplierSummary(){
 // PO Raised — NOT yet In Transit) grouped by supplier, with the ones past their
 // Supplier Dispatch Date flagged as delayed. Sorted worst-first (most delayed,
 // then most pending). Click a supplier to see its pending orders.
+/* Dashboard: per-order delay detail table — every currently-delayed order with the
+   4 delay values + inline extend date boxes (management can extend right here). */
+function renderDelayDetailTable(){
+  const el=document.getElementById('delayDetailBody');
+  if(!el) return;
+  const canEdit=_canSeeDispatch();
+  const rows=getVisibleOrders().filter(o=>_isDispatchDelayedNow(o)||_isTransitDelayedNow(o));
+  const worst=o=>Math.max(_dispOverdueDays(o)||0, _transitDelayDays(o)||0);
+  rows.sort((a,b)=>worst(b)-worst(a));
+  const lbl=document.getElementById('delayDetailLabel');
+  if(lbl) lbl.textContent=`${rows.length} delayed order${rows.length===1?'':'s'}`;
+  if(!rows.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ No delayed orders</div>'; return; }
+  const box=(val,dflt,fn,id)=>canEdit
+    ? `<input type="date" value="${val||dflt}" onchange="${fn}(${id},this.value)" title="Extend date" style="font-size:11px;padding:3px 5px;border:1.5px solid ${val?'#c7d2fe':'#e2e8f0'};border-radius:6px;background:#fff;color:#1e293b;cursor:pointer">`
+    : `<span style="font-size:11px;color:#475569">${_fmtDispatch(val||dflt)||'—'}</span>`;
+  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px">
+    <thead><tr style="text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc">
+      <th style="padding:8px 10px">Order</th>
+      <th style="padding:8px 10px">Supplier</th>
+      <th style="padding:8px 10px;text-align:center">Dispatch Delay</th>
+      <th style="padding:8px 10px;text-align:center">After Extended</th>
+      <th style="padding:8px 10px;text-align:center">Transporter Delay</th>
+      <th style="padding:8px 10px;text-align:center">After Extended</th>
+    </tr></thead><tbody>
+    ${rows.slice(0,50).map(o=>{
+      const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
+      const withT=_WITH_TRANSPORTER.includes(o.status);
+      return `<tr style="border-top:1px solid #f1f5f9">
+        <td style="padding:8px 10px;white-space:nowrap"><b>DON-${o.groupDonId||o.id}</b><div style="font-size:10px;color:#64748b">${o.customer||'—'}</div></td>
+        <td style="padding:8px 10px"><div style="font-size:12px">${o.vendor||'—'}</div><div style="font-size:10px;color:#94a3b8">${o.status}</div></td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap"><div style="font-size:9px;color:#94a3b8;margin-bottom:2px">exp ${_fmtDispatch(expD)}</div>${_delayBadge(_dispatchDelayDays(o))}</td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${box(o.dispatchDate,expD,'_setDispatchDate',o.id)}<div style="margin-top:3px">${_delayBadge(_dispatchDelayAfterExtendDays(o))}</div></td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${expT?`<div style="font-size:9px;color:#94a3b8;margin-bottom:2px">exp ${_fmtDispatch(expT)}</div>`+_delayBadge(_transitDelayDays(o)):'<span style="color:#cbd5e1">—</span>'}</td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${withT?box(o.transitExtendDate,expT,'_setTransitExtendDate',o.id)+'<div style="margin-top:3px">'+_delayBadge(_transitDelayAfterExtendDays(o))+'</div>':'<span style="color:#cbd5e1">—</span>'}</td>
+      </tr>`;}).join('')}
+    </tbody></table>${rows.length>50?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">+${rows.length-50} more delayed orders</div>`:''}</div>`;
+}
+
 function renderDispatchPendingBySupplier(){
   const el=document.getElementById('dispatchPendingList');
   if(!el)return;
@@ -4463,6 +4503,12 @@ function _isDispatchDelayedNow(o){
   const eff=_extendedDispatch(o)||_expectedDispatch(o);
   return eff?_midToday()>eff:false;
 }
+// Currently overdue with the transporter (uses the extended arrival date if set).
+function _isTransitDelayedNow(o){
+  if(!_WITH_TRANSPORTER.includes(o.status)) return false;
+  const eff=_extendedTransit(o)||_expectedTransit(o);
+  return eff?_midToday()>eff:false;
+}
 function _dispOverdueDays(o){
   const eff=_extendedDispatch(o)||_expectedDispatch(o);
   const d=_dayDiff(_midToday(), eff);
@@ -4624,7 +4670,7 @@ function renderOrderTable(data, mini=false, ns=''){
   // sortable col definitions: [label, sortKey]  — labels go through _getLabel() for customisation
   const colDefs=mini
     ? [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],[_getLabel('col.eta'),'eta'],[_getLabel('col.status'),'status']]
-    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Dispatch Delay',''],['Dispatch Delay (after extended)',''],['Transporter Delay',''],['Transporter Delay (after extended)','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
+    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Supplier Dispatch Date','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
   const thHtml=colDefs.map(([label,key])=>{
     if(!key||mini)return`<th>${label}</th>`;
     const active=ordersSortCol===key;
@@ -4683,27 +4729,10 @@ function renderOrderTable(data, mini=false, ns=''){
       ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
       ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
     </td>
-    ${(!mini&&_canSeeDispatch())?(()=>{
-      const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
-      const withTransp=_WITH_TRANSPORTER.includes(o.status);
-      const inpStyle=(hl)=>`font-size:11px;padding:4px 6px;border:1.5px solid ${hl?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff`;
-      return `
-    <td style="white-space:nowrap;text-align:center">
-      ${expD?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(expD)}</div>`:''}
-      ${_delayBadge(_dispatchDelayDays(o))}
-    </td>
-    <td style="white-space:nowrap;text-align:center">
-      <input type="date" value="${o.dispatchDate||expD}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()" title="Extend the supplier dispatch date" style="${inpStyle(o.dispatchDate)}">
-      <div style="margin-top:3px">${_delayBadge(_dispatchDelayAfterExtendDays(o))}</div>
-    </td>
-    <td style="white-space:nowrap;text-align:center">
-      ${expT?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(expT)}</div>`:''}
-      ${_delayBadge(_transitDelayDays(o))}
-    </td>
-    <td style="white-space:nowrap;text-align:center">
-      ${withTransp?`<input type="date" value="${o.transitExtendDate||expT}" onchange="_setTransitExtendDate(${o.id},this.value)" onclick="event.stopPropagation()" title="Extend the transporter arrival date" style="${inpStyle(o.transitExtendDate)}">
-      <div style="margin-top:3px">${_delayBadge(_transitDelayAfterExtendDays(o))}</div>`:'<span style="color:#cbd5e1;font-size:11px">—</span>'}
-    </td>`;})():''}
+    ${(!mini&&_canSeeDispatch())?`<td style="white-space:nowrap">
+      <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
+        style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff">
+    </td>`:''}
     <td style="font-size:12px">${buildEtaCell(o)}</td>
     <td style="white-space:nowrap">
       ${buildStatusDropdown(o)}${buildNextStageBtn(o)}
@@ -4715,7 +4744,7 @@ function renderOrderTable(data, mini=false, ns=''){
     const latest=c[c.length-1];
     const preview=latest.text.length>100?latest.text.slice(0,100)+'…':latest.text;
     const by=latest.by||'';
-    const cols=(showVend?6:5)+((!mini&&_canSeeDispatch())?4:0);
+    const cols=showVend?6:5;
     return '<tr class="cmt-row" data-oid="'+o.id+'" style="'+(o.status==='Cancelled'?'background:#fff5f5;opacity:.8;':'')+'">'
       +'<td style="padding:0 0 7px 0"></td>'
       +'<td colspan="'+cols+'" style="padding:0 14px 7px;border-bottom:1px solid #f1f5f9">'

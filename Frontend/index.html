@@ -366,6 +366,20 @@ window.__API__ = (function () {
           </div>
         </div>
 
+        <!-- Delayed Orders (detail) — per-order dispatch & transporter delay with inline extend -->
+        <div class="dash-cw span2" data-card="delaydetail" data-fixed="true" data-span="2">
+          <div class="dash-card">
+            <div class="dash-ch">
+              <div>
+                <div class="dash-ct"><svg class="hico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6M22 6l-3-3"/></svg>Delayed Orders — Dispatch &amp; Transporter</div>
+                <div class="dash-cs" id="delayDetailLabel"></div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="navTo('pending-delayed')" style="font-size:11px;white-space:nowrap">⏰ View Delayed →</button>
+            </div>
+            <div id="delayDetailBody" class="dash-cb" style="padding:8px 12px"></div>
+          </div>
+        </div>
+
         <!-- ETA Edited / Material Status card -->
         <div class="dash-cw span2" data-card="etaedited" data-fixed="true" data-span="2">
           <div class="dash-card" id="dashEtaEditedCard">
