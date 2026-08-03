@@ -6453,6 +6453,16 @@ function _omSyncDispatch(){
   const di=document.getElementById('omDispatchDate'), od=document.getElementById('omDate');
   if(di&&od) di.value=_autoDispatchStr(od.value);
 }
+// Order date changed → keep everything that derives from it automatic:
+// re-fill the auto dispatch date AND recompute every product line's ETA
+// (ETA = order date + that line's delivery days) so ETA never goes stale.
+function _omDateChanged(){
+  _omSyncDispatch();
+  document.querySelectorAll('#omProductLines .om-pline').forEach(line=>{
+    const daysInput=line.querySelector('.omLineDays');
+    if(daysInput) updateLineEta(daysInput);
+  });
+}
 function openOrderModal(id=null){
   if(id){
     const o=orders.find(x=>x.id===id);
