@@ -4801,8 +4801,8 @@ function renderOrderTable(data, mini=false, ns=''){
       ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
     </td>
     ${(!mini&&_canSeeDispatch())?`<td style="white-space:nowrap">
-      <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
-        style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff">
+      <input type="date" value="${o.dispatchDate||_dToStr(_expectedDispatch(o))}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
+        style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff" title="Auto = order date + ${DISPATCH_DAYS} days; change to a later date to extend">
     </td>`:''}
     <td style="font-size:12px">${buildEtaCell(o)}</td>
     <td style="white-space:nowrap">
@@ -6880,7 +6880,7 @@ function viewOrder(id){
       ${can('viewVendor')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Vendor</span><div>${o.vendor}${v?` <span style="color:#64748b;font-size:11px">(${v.deliveryDays}d, ${v.location})</span>`:''}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Quantity</span><div style="font-weight:700">${o.qty} units</div></div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Order Date</span><div>${fmt(o.orderDate)}</div></div>
-      ${(o.dispatchDate&&_canSeeDispatch())?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Supplier Dispatch Date</span><div style="color:#b45309;font-weight:700">🚚 ${_fmtDispatch(o.dispatchDate)}</div></div>`:''}
+      ${_canSeeDispatch()?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Supplier Dispatch Date</span><div style="color:#b45309;font-weight:700">🚚 ${_fmtDispatch(o.dispatchDate||_dToStr(_expectedDispatch(o)))}${o.dispatchDate?'':' <span style="color:#94a3b8;font-weight:600;font-size:10px">(auto)</span>'}</div></div>`:''}
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">ETA Bangalore</span>${_canEditEta?`<div style="margin-top:3px"><input type="date" value="${o.eta||''}" onchange="_viewSetEta(${o.id}, this.value)" title="Change ETA date" style="padding:5px 9px;border:1.5px solid #1a73e8;border-radius:8px;font-size:13px;font-weight:600;color:#1e293b;outline:none;box-sizing:border-box"></div>`:`<div>${fmt(o.eta)||'—'}</div>`}</div>
       <div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Customer Ref</span><div style="color:#1a73e8;font-weight:600">${o.poNum||'—'}</div></div>
       ${can('viewBiller')?`<div><span style="color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700">Assigned Biller</span><div>${o.biller||'—'}</div></div>`:''}
@@ -10539,6 +10539,9 @@ function renderVendorPO(){
       const donLabel=`DON-${o.groupDonId||o.id} ${odd}/${omm}`;
       return`
       <tr data-oid="${o.id}" style="border-bottom:1px solid #f1f5f9;transition:background .1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="padding:10px 12px;text-align:center">
+          <input type="checkbox" class="po-sel-cb" data-oid="${o.id}" checked onclick="event.stopPropagation()" title="Select for PO / message" style="width:15px;height:15px;accent-color:#1a73e8;cursor:pointer">
+        </td>
         <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">
           <span onclick="filterByDON(${o.id})" title="View in Orders" style="font-size:10px;font-weight:800;color:#1e293b;font-family:monospace;cursor:pointer;border-radius:4px;padding:1px 4px;transition:background .15s" onmouseover="this.style.background='#e0e7ff';this.style.color='#3730a3'" onmouseout="this.style.background='';this.style.color='#1e293b'">${donLabel}</span>
           ${o.vendorPoNum?`<div style="margin-top:3px;font-size:10px;font-weight:800;color:#1e293b;font-family:monospace">${_spo(o.vendorPoNum)}</div>`:''}
@@ -10561,8 +10564,8 @@ function renderVendorPO(){
           ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
         </td>
         <td style="padding:10px 12px;white-space:nowrap">
-          <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
-            style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff" title="Set expected dispatch date — shows in Delayed Dispatch if it passes and the order isn't In Transit">
+          <input type="date" value="${o.dispatchDate||_dToStr(_expectedDispatch(o))}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
+            style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff" title="Auto = order date + ${DISPATCH_DAYS} days. Change to a later date to extend the supplier deadline.">
         </td>
         <td style="padding:10px 12px;font-size:12px">${buildEtaCell(o)}</td>
         <td style="padding:10px 12px;font-size:12px;color:#64748b">
@@ -10591,6 +10594,7 @@ function renderVendorPO(){
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc">
+            <th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none"><input type="checkbox" class="po-selall-cb" checked onchange="_poToggleAll(this)" title="Select / deselect all" style="width:15px;height:15px;accent-color:#1a73e8;cursor:pointer"></th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">#</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">Customer</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase;font-weight:700;user-select:none">SKU / Product</th>
@@ -10610,10 +10614,10 @@ function renderVendorPO(){
 function copyWAText(elId, vendorName, btn){
   const el=document.getElementById(elId);
   if(!el)return;
-  // Checkboxes removed — send ALL orders shown in this vendor's card.
+  // Send only the CHECKED orders in this vendor's card.
   const card=el.closest('.card');
-  const rows=[...card.querySelectorAll('tr[data-oid]')];
-  if(!rows.length){showToast('No orders to send','warning');return;}
+  const rows=[...card.querySelectorAll('.po-sel-cb:checked')].map(cb=>cb.closest('tr[data-oid]')).filter(Boolean);
+  if(!rows.length){showToast('Select at least one order to send','warning');return;}
   const checkedOrders=rows.map(row=>orders.find(x=>x.id===parseInt(row.dataset.oid))).filter(Boolean);
   // Assign one VPO number to this batch if not already assigned
   const existingVpo=[...new Set(checkedOrders.map(o=>o.vendorPoNum).filter(Boolean))][0];
@@ -10677,13 +10681,18 @@ function toggleVendorChk(vendorName, masterChk){
   card.querySelectorAll('.vpo-chk').forEach(cb=>cb.checked=masterChk.checked);
 }
 
+// Select/deselect all order checkboxes within one supplier card.
+function _poToggleAll(cb){
+  const card=cb.closest('.card');
+  if(card) card.querySelectorAll('.po-sel-cb').forEach(x=>{ x.checked=cb.checked; });
+}
 function markVendorPORaised(vendorName, btn){
   const card=[...document.querySelectorAll('#vendorPOList .card')].find(c=>{
     const h3=c.querySelector('h3');return h3&&h3.textContent.trim()===vendorName;
   });
-  // Checkboxes removed — act on ALL orders shown in this vendor's card.
-  const rows=card?[...card.querySelectorAll('tr[data-oid]')]:[];
-  if(!rows.length){showToast('No orders to raise','warning');return;}
+  // Act only on the CHECKED orders in this vendor's card.
+  const rows=card?[...card.querySelectorAll('.po-sel-cb:checked')].map(cb=>cb.closest('tr[data-oid]')).filter(Boolean):[];
+  if(!rows.length){showToast('Select at least one order to raise PO','warning');return;}
   let count=0;
   const batchPoNum=generatePoNum();
   const raisedOrders=[];
