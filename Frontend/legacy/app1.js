@@ -5383,14 +5383,19 @@ function confirmTransit(){
     const prev=o.status;
 
     if(shipQty<orderedQty){
-      // ── Partial: ship shipQty, keep remainder as new PO Raised ──
-      // The balance MUST be a brand-new order: drop the server _id/updatedAt copied by
-      // the spread, otherwise it shares the shipped order's _id and its PUT overwrites
-      // the just-shipped In-Transit order on the server (the shipped qty never sticks).
+      // ── Partial: ship shipQty, keep remainder as a NEW back-order in PO Raised ──
+      // The balance must be a brand-new order with its OWN identity:
+      //  • drop the server _id/updatedAt (else it shares the shipped order's _id and its
+      //    PUT overwrites the just-shipped In-Transit order — shipped qty never sticks);
+      //  • give it its OWN DON (groupDonId = its own id) — if it kept the shipped order's
+      //    DON, DON-grouped views collapse that DON to "In Transit" and hide the balance.
+      //    linkedToOrderId still ties it back to the original for traceability.
       const remainQty=orderedQty-shipQty;
-      const remainder={...o, _id:undefined, updatedAt:'', id:nextOrderId++, qty:remainQty, status:prev, linkedToOrderId:o.id, transitDetails:{}, trail:[], etaHistory:[]};
+      const _balId=nextOrderId++;
+      const remainder={...o, _id:undefined, updatedAt:'', id:_balId, groupDonId:_balId, qty:remainQty, status:prev, linkedToOrderId:o.id, transitDetails:{}, trail:[], etaHistory:[]};
       newOrders.push(remainder);
       o.qty=shipQty;
+      try{localStorage.setItem(LS_ID_KEY,String(nextOrderId));}catch(e){}
       splits++;
       audit('PARTIAL_SPLIT',`DON-${o.id} partial shipment: ${shipQty} shipped, ${remainQty} split → DON-${remainder.id}`,'order',o.id);
     }
