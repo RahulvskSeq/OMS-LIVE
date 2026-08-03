@@ -245,7 +245,9 @@
     const _sp=s=>{const i=_SORD.indexOf(s);return i>=0?i:-1;};
     const _seenKeys=new Map(); const _deduped=[];
     for(const o of all){
-      const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
+      // linkedToOrderId + split flags keep a partial-shipment balance / back-order (which
+      // can share customer·product·qty·date with its parent) from being merged away.
+      const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'')+'|'+(o.linkedToOrderId||'')+'|'+(o.isStockAddition?'sa':'')+'|'+(o.isSurplus?'su':'');
       if(!_seenKeys.has(key)){_seenKeys.set(key,{o,sp:_sp(o.status),sq:o.seqId||0});_deduped.push(o);}
       else{const p=_seenKeys.get(key);const cs=_sp(o.status);const cq=o.seqId||0;
         if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_deduped.indexOf(p.o);if(pi>=0)_deduped[pi]=o;_seenKeys.set(key,{o,sp:cs,sq:cq});}}
@@ -713,7 +715,9 @@
       const _sp2=s=>{const i=_SORD2.indexOf(s);return i>=0?i:-1;};
       const _sk=new Map(); const _dd=[];
       for(const o of all){
-        const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'');
+        // linkedToOrderId + split flags keep a partial-shipment balance / back-order (which
+      // can share customer·product·qty·date with its parent) from being merged away.
+      const key=(o.customer||'')+'|'+(o.product||o.orderedCode||'')+'|'+(o.qty||0)+'|'+(o.orderDate||'')+'|'+(o.biller||'')+'|'+(o.createdBy||'')+'|'+(o.linkedToOrderId||'')+'|'+(o.isStockAddition?'sa':'')+'|'+(o.isSurplus?'su':'');
         if(!_sk.has(key)){_sk.set(key,{o,sp:_sp2(o.status),sq:o.seqId||0});_dd.push(o);}
         else{const p=_sk.get(key);const cs=_sp2(o.status);const cq=o.seqId||0;if(cs>p.sp||(cs===p.sp&&cq>p.sq)){const pi=_dd.indexOf(p.o);if(pi>=0)_dd[pi]=o;_sk.set(key,{o,sp:cs,sq:cq});}}
       }
