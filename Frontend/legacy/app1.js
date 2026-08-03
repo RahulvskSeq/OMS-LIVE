@@ -2667,10 +2667,15 @@ function _delayTableHTML(rows, limit, maxH){
   const box=(val,dflt,fn,id)=>canEdit
     ? `<input type="date" value="${val||dflt}" onchange="${fn}(${id},this.value)" onclick="event.stopPropagation()" title="Extend date" style="font-size:11px;padding:4px 7px;border:1.5px solid ${val?'#93c5fd':'#e2e8f0'};border-radius:7px;background:#fff;color:#1e293b;cursor:pointer;font-weight:600">`
     : `<span style="font-size:11px;color:#475569">${_fmtDispatch(val||dflt)||'—'}</span>`;
-  const dCell=(exp,days,tint,edge)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint};${edge?'border-left:2px solid #e5e9f0':''}">${exp?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(exp)}</div>`+_delayBadge(days):'<span style="color:#cbd5e1">—</span>'}</td>`;
-  const eCell=(exp,val,fn,id,after,tint)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint}">${exp?box(val,exp,fn,id)+`<div style="margin-top:4px">${_delayBadge(after)}</div>`:'<span style="color:#cbd5e1">—</span>'}</td>`;
+  const dCell=(exp,days,tint,edge,tip)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint};${edge?'border-left:2px solid #e5e9f0':''}">${exp?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(exp)}</div>`+_delayBadge(days,tip):'<span style="color:#cbd5e1">—</span>'}</td>`;
+  const eCell=(exp,val,fn,id,after,tint,tip)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint}">${exp?box(val,exp,fn,id)+`<div style="margin-top:4px">${_delayBadge(after,tip)}</div>`:'<span style="color:#cbd5e1">—</span>'}</td>`;
   const DT='#f4f8ff', TT='#fffaf3', H='#f8fafc';
-  return `<div style="overflow:auto;max-height:${maxH};border:1px solid #eef2f7;border-radius:12px">
+  const legend=`<div style="font-size:11px;color:#64748b;padding:2px 4px 10px;display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center;line-height:1.5">
+    <span><b style="color:#1d4ed8">🏭 Dispatch due</b> = order date + ${DISPATCH_DAYS} days</span>
+    <span><b style="color:#c2410c">🚚 Transporter due</b> = dispatch date + ${TRANSIT_DAYS} days</span>
+    <span style="color:#94a3b8">·  “Delay” = days past the due date. Extend a date to reset the clock → shown under “After Extended”. Hover a badge for the exact math.</span>
+  </div>`;
+  return `${legend}<div style="overflow:auto;max-height:${maxH};border:1px solid #eef2f7;border-radius:12px">
   <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:780px">
     <thead>
       <tr style="color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:800">
@@ -2689,6 +2694,13 @@ function _delayTableHTML(rows, limit, maxH){
     ${rows.slice(0,limit).map(o=>{
       const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
       const withT=_WITH_TRANSPORTER.includes(o.status);
+      const dDays=_dispatchDelayDays(o), dAfter=_dispatchDelayAfterExtendDays(o);
+      const tDays=_transitDelayDays(o), tAfter=_transitDelayAfterExtendDays(o);
+      const dispatched=!_PRE_TRANSIT.includes(o.status);
+      const dTip=`Dispatch due ${_fmtDispatch(expD)} = order ${_fmtDispatch(o.orderDate)} + ${DISPATCH_DAYS} days.\n${dispatched?'Supplier dispatched '+_fmtDispatch(_dToStr(_dispatchActual(o))):'As of today'} → ${_delayPhrase(dDays)}.`;
+      const dATip=o.dispatchDate?`Manager extended dispatch to ${_fmtDispatch(o.dispatchDate)}.\n${dispatched?'Dispatched':'As of today'} → ${_delayPhrase(dAfter)} vs the extended date.`:`No extension set. Manager can pick a later date to reset the clock.`;
+      const tTip=withT?`Transporter due ${_fmtDispatch(expT)} = dispatch ${_fmtDispatch(_dToStr(_dispatchActual(o)))} + ${TRANSIT_DAYS} days.\nAs of today → ${_delayPhrase(tDays)}.`:'';
+      const tATip=o.transitExtendDate?`Manager extended arrival to ${_fmtDispatch(o.transitExtendDate)}.\nAs of today → ${_delayPhrase(tAfter)} vs the extended date.`:`No extension set. Manager can pick a later date to reset the clock.`;
       return `<tr style="border-top:1px solid #f1f5f9;transition:background .12s" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
         <td onclick="viewOrder(${o.id})" style="padding:11px 14px;white-space:nowrap;cursor:pointer" title="Open order details">
           <b style="color:#1a73e8">DON-${o.groupDonId||o.id}</b>
@@ -2696,10 +2708,10 @@ function _delayTableHTML(rows, limit, maxH){
         <td onclick="viewOrder(${o.id})" style="padding:11px 14px;cursor:pointer">
           <div style="font-size:12px;font-weight:600;color:#334155">${o.vendor||'—'}</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:1px">${o.status}</div></td>
-        ${dCell(expD,_dispatchDelayDays(o),DT,true)}
-        ${eCell(expD,o.dispatchDate,'_setDispatchDate',o.id,_dispatchDelayAfterExtendDays(o),DT)}
-        ${dCell(withT?expT:'',_transitDelayDays(o),TT,true)}
-        ${eCell(withT?expT:'',o.transitExtendDate,'_setTransitExtendDate',o.id,_transitDelayAfterExtendDays(o),TT)}
+        ${dCell(expD,dDays,DT,true,dTip)}
+        ${eCell(expD,o.dispatchDate,'_setDispatchDate',o.id,dAfter,DT,dATip)}
+        ${dCell(withT?expT:'',tDays,TT,true,tTip)}
+        ${eCell(withT?expT:'',o.transitExtendDate,'_setTransitExtendDate',o.id,tAfter,TT,tATip)}
       </tr>`;}).join('')}
     </tbody></table></div>`;
 }
@@ -4570,12 +4582,15 @@ function _dispOverdueDays(o){
   return d&&d>0?d:0;
 }
 // Compact delay badge: red = late, green = on time, blue = early, grey dash = n/a.
-function _delayBadge(days){
-  if(days==null) return '<span style="color:#cbd5e1;font-size:11px">—</span>';
-  if(days>0)  return `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:10px;white-space:nowrap">⚠ ${days}d late</span>`;
-  if(days===0)return `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:10px;white-space:nowrap">On time</span>`;
-  return `<span style="font-size:10px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:2px 8px;border-radius:10px;white-space:nowrap">${-days}d early</span>`;
+// Optional `tip` becomes a hover tooltip explaining how the number was derived.
+function _delayBadge(days, tip){
+  const t=tip?` title="${String(tip).replace(/"/g,'&quot;')}"`:'';
+  if(days==null) return `<span style="color:#cbd5e1;font-size:11px"${t}>—</span>`;
+  if(days>0)  return `<span${t} style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:10px;white-space:nowrap;cursor:help">⚠ ${days}d late</span>`;
+  if(days===0)return `<span${t} style="font-size:10px;font-weight:700;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:10px;white-space:nowrap;cursor:help">On time</span>`;
+  return `<span${t} style="font-size:10px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:2px 8px;border-radius:10px;white-space:nowrap;cursor:help">${-days}d early</span>`;
 }
+function _delayPhrase(d){ if(d==null)return'n/a'; if(d>0)return `${d} day${d>1?'s':''} late`; if(d===0)return 'on time'; return `${-d} day${-d>1?'s':''} early`; }
 function renderOrdersTable(){
   _ordersLoadedCount=0; // reset infinite scroll position on every fresh render
   renderOrderKpis();
