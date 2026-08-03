@@ -2669,14 +2669,22 @@ function renderDelayDetailTable(){
   const box=(val,dflt,fn,id)=>canEdit
     ? `<input type="date" value="${val||dflt}" onchange="${fn}(${id},this.value)" title="Extend date" style="font-size:11px;padding:3px 5px;border:1.5px solid ${val?'#c7d2fe':'#e2e8f0'};border-radius:6px;background:#fff;color:#1e293b;cursor:pointer">`
     : `<span style="font-size:11px;color:#475569">${_fmtDispatch(val||dflt)||'—'}</span>`;
-  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px">
+  // One combined cell per stage: expected date · delay · extend box · delay-after-extend.
+  const stageCell=(exp, delayDays, val, fn, id, afterDays)=>{
+    if(!exp) return '<span style="color:#cbd5e1">—</span>';
+    return `<div style="display:flex;flex-direction:column;gap:3px;align-items:center">
+      <span style="font-size:9px;color:#94a3b8">exp ${_fmtDispatch(exp)}</span>
+      ${_delayBadge(delayDays)}
+      ${box(val,exp,fn,id)}
+      ${val?`<span style="font-size:9px;color:#94a3b8">after extend</span>${_delayBadge(afterDays)}`:''}
+    </div>`;
+  };
+  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
     <thead><tr style="text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc">
       <th style="padding:8px 10px">Order</th>
       <th style="padding:8px 10px">Supplier</th>
-      <th style="padding:8px 10px;text-align:center">Dispatch Delay</th>
-      <th style="padding:8px 10px;text-align:center">After Extended</th>
-      <th style="padding:8px 10px;text-align:center">Transporter Delay</th>
-      <th style="padding:8px 10px;text-align:center">After Extended</th>
+      <th style="padding:8px 10px;text-align:center">🏭 Dispatch</th>
+      <th style="padding:8px 10px;text-align:center">🚚 Transporter</th>
     </tr></thead><tbody>
     ${rows.slice(0,50).map(o=>{
       const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
@@ -2684,10 +2692,8 @@ function renderDelayDetailTable(){
       return `<tr style="border-top:1px solid #f1f5f9">
         <td style="padding:8px 10px;white-space:nowrap"><b>DON-${o.groupDonId||o.id}</b><div style="font-size:10px;color:#64748b">${o.customer||'—'}</div></td>
         <td style="padding:8px 10px"><div style="font-size:12px">${o.vendor||'—'}</div><div style="font-size:10px;color:#94a3b8">${o.status}</div></td>
-        <td style="padding:8px 10px;text-align:center;white-space:nowrap"><div style="font-size:9px;color:#94a3b8;margin-bottom:2px">exp ${_fmtDispatch(expD)}</div>${_delayBadge(_dispatchDelayDays(o))}</td>
-        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${box(o.dispatchDate,expD,'_setDispatchDate',o.id)}<div style="margin-top:3px">${_delayBadge(_dispatchDelayAfterExtendDays(o))}</div></td>
-        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${expT?`<div style="font-size:9px;color:#94a3b8;margin-bottom:2px">exp ${_fmtDispatch(expT)}</div>`+_delayBadge(_transitDelayDays(o)):'<span style="color:#cbd5e1">—</span>'}</td>
-        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${withT?box(o.transitExtendDate,expT,'_setTransitExtendDate',o.id)+'<div style="margin-top:3px">'+_delayBadge(_transitDelayAfterExtendDays(o))+'</div>':'<span style="color:#cbd5e1">—</span>'}</td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${stageCell(expD,_dispatchDelayDays(o),o.dispatchDate,'_setDispatchDate',o.id,_dispatchDelayAfterExtendDays(o))}</td>
+        <td style="padding:8px 10px;text-align:center;white-space:nowrap">${withT?stageCell(expT,_transitDelayDays(o),o.transitExtendDate,'_setTransitExtendDate',o.id,_transitDelayAfterExtendDays(o)):'<span style="color:#cbd5e1">—</span>'}</td>
       </tr>`;}).join('')}
     </tbody></table>${rows.length>50?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">+${rows.length-50} more delayed orders</div>`:''}</div>`;
 }
