@@ -2654,52 +2654,98 @@ function renderSupplierSummary(){
 // PO Raised — NOT yet In Transit) grouped by supplier, with the ones past their
 // Supplier Dispatch Date flagged as delayed. Sorted worst-first (most delayed,
 // then most pending). Click a supplier to see its pending orders.
-/* Dashboard: per-order delay detail table — every currently-delayed order with the
-   4 delay values + inline extend date boxes (management can extend right here). */
+/* All currently-delayed orders (dispatch or transporter), worst delay first. */
+function _getDelayedRows(){
+  const rows=getVisibleOrders().filter(o=>_isDispatchDelayedNow(o)||_isTransitDelayedNow(o));
+  const worst=o=>Math.max(_dispOverdueDays(o)||0, _transitDelayDays(o)||0);
+  return rows.sort((a,b)=>worst(b)-worst(a));
+}
+/* Shared grouped delay table (Dispatch / Transporter, each with Delay + After-Extended).
+   Rows are clickable → open the order detail. limit caps rows; maxH sets scroll height. */
+function _delayTableHTML(rows, limit, maxH){
+  const canEdit=_canSeeDispatch();
+  const box=(val,dflt,fn,id)=>canEdit
+    ? `<input type="date" value="${val||dflt}" onchange="${fn}(${id},this.value)" onclick="event.stopPropagation()" title="Extend date" style="font-size:11px;padding:4px 7px;border:1.5px solid ${val?'#93c5fd':'#e2e8f0'};border-radius:7px;background:#fff;color:#1e293b;cursor:pointer;font-weight:600">`
+    : `<span style="font-size:11px;color:#475569">${_fmtDispatch(val||dflt)||'—'}</span>`;
+  const dCell=(exp,days,tint,edge)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint};${edge?'border-left:2px solid #e5e9f0':''}">${exp?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(exp)}</div>`+_delayBadge(days):'<span style="color:#cbd5e1">—</span>'}</td>`;
+  const eCell=(exp,val,fn,id,after,tint)=>`<td style="padding:11px 10px;text-align:center;white-space:nowrap;background:${tint}">${exp?box(val,exp,fn,id)+`<div style="margin-top:4px">${_delayBadge(after)}</div>`:'<span style="color:#cbd5e1">—</span>'}</td>`;
+  const DT='#f4f8ff', TT='#fffaf3', H='#f8fafc';
+  return `<div style="overflow:auto;max-height:${maxH};border:1px solid #eef2f7;border-radius:12px">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:780px">
+    <thead>
+      <tr style="color:#475569;font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:800">
+        <th rowspan="2" style="position:sticky;top:0;background:${H};padding:11px 14px;text-align:left;vertical-align:bottom;z-index:3">Order</th>
+        <th rowspan="2" style="position:sticky;top:0;background:${H};padding:11px 14px;text-align:left;vertical-align:bottom;z-index:3">Supplier</th>
+        <th colspan="2" style="position:sticky;top:0;padding:9px 10px;text-align:center;border-left:2px solid #e5e9f0;background:#dbeafe;color:#1d4ed8;z-index:3">🏭 Dispatch</th>
+        <th colspan="2" style="position:sticky;top:0;padding:9px 10px;text-align:center;border-left:2px solid #e5e9f0;background:#ffedd5;color:#c2410c;z-index:3">🚚 Transporter</th>
+      </tr>
+      <tr style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:.03em;font-weight:700">
+        <th style="position:sticky;top:35px;padding:6px 8px;text-align:center;border-left:2px solid #e5e9f0;background:#eff6ff;z-index:3">Delay</th>
+        <th style="position:sticky;top:35px;padding:6px 8px;text-align:center;background:#eff6ff;z-index:3">After Extended</th>
+        <th style="position:sticky;top:35px;padding:6px 8px;text-align:center;border-left:2px solid #e5e9f0;background:#fff7ed;z-index:3">Delay</th>
+        <th style="position:sticky;top:35px;padding:6px 8px;text-align:center;background:#fff7ed;z-index:3">After Extended</th>
+      </tr>
+    </thead><tbody>
+    ${rows.slice(0,limit).map(o=>{
+      const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
+      const withT=_WITH_TRANSPORTER.includes(o.status);
+      return `<tr style="border-top:1px solid #f1f5f9;transition:background .12s" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background=''">
+        <td onclick="viewOrder(${o.id})" style="padding:11px 14px;white-space:nowrap;cursor:pointer" title="Open order details">
+          <b style="color:#1a73e8">DON-${o.groupDonId||o.id}</b>
+          <div style="font-size:11px;color:#64748b;margin-top:1px">${o.customer||'—'}</div></td>
+        <td onclick="viewOrder(${o.id})" style="padding:11px 14px;cursor:pointer">
+          <div style="font-size:12px;font-weight:600;color:#334155">${o.vendor||'—'}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:1px">${o.status}</div></td>
+        ${dCell(expD,_dispatchDelayDays(o),DT,true)}
+        ${eCell(expD,o.dispatchDate,'_setDispatchDate',o.id,_dispatchDelayAfterExtendDays(o),DT)}
+        ${dCell(withT?expT:'',_transitDelayDays(o),TT,true)}
+        ${eCell(withT?expT:'',o.transitExtendDate,'_setTransitExtendDate',o.id,_transitDelayAfterExtendDays(o),TT)}
+      </tr>`;}).join('')}
+    </tbody></table></div>`;
+}
+/* Dashboard card: top delayed orders (capped), with a button to open all. */
 function renderDelayDetailTable(){
   const el=document.getElementById('delayDetailBody');
   if(!el) return;
-  const canEdit=_canSeeDispatch();
-  const rows=getVisibleOrders().filter(o=>_isDispatchDelayedNow(o)||_isTransitDelayedNow(o));
-  const worst=o=>Math.max(_dispOverdueDays(o)||0, _transitDelayDays(o)||0);
-  rows.sort((a,b)=>worst(b)-worst(a));
+  const rows=_getDelayedRows();
   const lbl=document.getElementById('delayDetailLabel');
   if(lbl) lbl.textContent=`${rows.length} delayed order${rows.length===1?'':'s'}`;
-  if(!rows.length){ el.innerHTML='<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">✅ No delayed orders</div>'; return; }
-  const box=(val,dflt,fn,id)=>canEdit
-    ? `<input type="date" value="${val||dflt}" onchange="${fn}(${id},this.value)" title="Extend date" style="font-size:11px;padding:3px 5px;border:1.5px solid ${val?'#c7d2fe':'#e2e8f0'};border-radius:6px;background:#fff;color:#1e293b;cursor:pointer">`
-    : `<span style="font-size:11px;color:#475569">${_fmtDispatch(val||dflt)||'—'}</span>`;
-  // "Delay" sub-cell: expected date + delay badge. "After Extended" sub-cell: extend box + delay-after-extend badge.
-  const delayCell=(exp, days, edge)=>`<td style="padding:8px 8px;text-align:center;white-space:nowrap;${edge?'border-left:2px solid #e2e8f0':''}">${exp?`<div style="font-size:9px;color:#94a3b8;margin-bottom:2px">exp ${_fmtDispatch(exp)}</div>`+_delayBadge(days):'<span style="color:#cbd5e1">—</span>'}</td>`;
-  const extCell=(exp, val, fn, id, afterDays)=>`<td style="padding:8px 8px;text-align:center;white-space:nowrap">${exp?box(val,exp,fn,id)+`<div style="margin-top:3px">${_delayBadge(afterDays)}</div>`:'<span style="color:#cbd5e1">—</span>'}</td>`;
-  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:680px">
-    <thead>
-      <tr style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc">
-        <th rowspan="2" style="padding:8px 10px;text-align:left;vertical-align:bottom">Order</th>
-        <th rowspan="2" style="padding:8px 10px;text-align:left;vertical-align:bottom">Supplier</th>
-        <th colspan="2" style="padding:6px 10px;text-align:center;border-left:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;background:#eff6ff;color:#1d4ed8">🏭 Dispatch</th>
-        <th colspan="2" style="padding:6px 10px;text-align:center;border-left:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0;background:#fff7ed;color:#c2410c">🚚 Transporter</th>
-      </tr>
-      <tr style="color:#94a3b8;font-size:9px;text-transform:uppercase;letter-spacing:.03em;background:#f8fafc">
-        <th style="padding:5px 8px;text-align:center;border-left:2px solid #e2e8f0">Delay</th>
-        <th style="padding:5px 8px;text-align:center">After Extended</th>
-        <th style="padding:5px 8px;text-align:center;border-left:2px solid #e2e8f0">Delay</th>
-        <th style="padding:5px 8px;text-align:center">After Extended</th>
-      </tr>
-    </thead><tbody>
-    ${rows.slice(0,50).map(o=>{
-      const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
-      const withT=_WITH_TRANSPORTER.includes(o.status);
-      return `<tr style="border-top:1px solid #f1f5f9">
-        <td style="padding:8px 10px;white-space:nowrap"><b>DON-${o.groupDonId||o.id}</b><div style="font-size:10px;color:#64748b">${o.customer||'—'}</div></td>
-        <td style="padding:8px 10px"><div style="font-size:12px">${o.vendor||'—'}</div><div style="font-size:10px;color:#94a3b8">${o.status}</div></td>
-        ${delayCell(expD,_dispatchDelayDays(o),true)}
-        ${extCell(expD,o.dispatchDate,'_setDispatchDate',o.id,_dispatchDelayAfterExtendDays(o))}
-        ${delayCell(withT?expT:'',_transitDelayDays(o),true)}
-        ${extCell(withT?expT:'',o.transitExtendDate,'_setTransitExtendDate',o.id,_transitDelayAfterExtendDays(o))}
-      </tr>`;}).join('')}
-    </tbody></table>${rows.length>50?`<div style="text-align:center;font-size:11px;color:#94a3b8;padding:8px">+${rows.length-50} more delayed orders</div>`:''}</div>`;
+  if(!rows.length){ el.innerHTML='<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px">✅ No delayed orders</div>'; return; }
+  const CAP=25;
+  el.innerHTML=_delayTableHTML(rows,CAP,'440px')+(rows.length>CAP
+    ? `<div style="text-align:center;padding:12px 0 4px"><button onclick="openAllDelayed()" class="btn btn-outline btn-sm" style="font-size:12px">View all ${rows.length} delayed orders →</button></div>`
+    : '');
 }
+/* Full modal: every delayed order (no cap). Reused by the "View Delayed" button. */
+function openAllDelayed(){
+  let ov=document.getElementById('allDelayedOverlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='allDelayedOverlay';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px';
+    ov.onclick=e=>{ if(e.target===ov) closeAllDelayed(); };
+    ov.innerHTML=`<div style="background:#fff;border-radius:16px;width:min(1120px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.35)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;border-bottom:1px solid #eef2f7">
+        <div><div style="font-size:16px;font-weight:800;color:#1e293b">⏰ All Delayed Orders</div><div id="allDelayedSub" style="font-size:12px;color:#64748b;margin-top:2px"></div></div>
+        <button onclick="closeAllDelayed()" style="background:#f1f5f9;border:none;border-radius:9px;width:34px;height:34px;cursor:pointer;font-size:16px;color:#475569">✕</button>
+      </div>
+      <div id="allDelayedBody" style="padding:16px 22px;overflow:auto"></div>
+    </div>`;
+    document.body.appendChild(ov);
+  }
+  ov.style.display='flex';
+  _renderAllDelayedBody();
+}
+function _renderAllDelayedBody(){
+  const body=document.getElementById('allDelayedBody');
+  if(!body) return;
+  const rows=_getDelayedRows();
+  const sub=document.getElementById('allDelayedSub');
+  if(sub) sub.textContent=`${rows.length} delayed order${rows.length===1?'':'s'} · click any order to open it`;
+  body.innerHTML=rows.length?_delayTableHTML(rows,100000,'74vh'):'<div style="text-align:center;padding:40px;color:#94a3b8">✅ No delayed orders</div>';
+}
+function closeAllDelayed(){ const ov=document.getElementById('allDelayedOverlay'); if(ov) ov.style.display='none'; }
+function _isAllDelayedOpen(){ const ov=document.getElementById('allDelayedOverlay'); return !!ov&&ov.style.display!=='none'; }
 
 function renderDispatchPendingBySupplier(){
   const el=document.getElementById('dispatchPendingList');
@@ -10371,6 +10417,7 @@ function _setDispatchDate(id, val){
   if(typeof _syncPendingTabBtns==='function') _syncPendingTabBtns();
   if(typeof showToast==='function') showToast(val?'Dispatch date extended — '+val:'Dispatch date cleared (back to auto)','success');
   if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
+  if(_isAllDelayedOpen()) _renderAllDelayedBody();
 }
 function _setTransitExtendDate(id, val){
   const o=orders.find(x=>x.id===id);
@@ -10380,6 +10427,7 @@ function _setTransitExtendDate(id, val){
   if(typeof buildSidebar==='function') buildSidebar();
   if(typeof showToast==='function') showToast(val?'Transporter date extended — '+val:'Transporter date cleared (back to auto)','success');
   if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
+  if(_isAllDelayedOpen()) _renderAllDelayedBody();
 }
 
 function renderVendorPO(){
