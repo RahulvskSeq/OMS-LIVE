@@ -47,7 +47,8 @@ const orderSchema = new mongoose.Schema({
   orderDate:      { type: Date, required: true, default: Date.now },
   eta:            { type: String },
   etaBangalore:   { type: String },
-  dispatchDate:   { type: String, default: '' }, // user-set expected supplier dispatch date (YYYY-MM-DD)
+  dispatchDate:   { type: String, default: '' }, // manager-EXTENDED supplier dispatch date (YYYY-MM-DD); blank = use auto (orderDate + default days)
+  transitExtendDate: { type: String, default: '' }, // manager-EXTENDED transporter arrival date (YYYY-MM-DD); blank = use auto (dispatch + default transit days)
 
   // Status
   status: {

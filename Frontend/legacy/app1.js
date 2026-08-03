@@ -2657,7 +2657,7 @@ function renderDispatchPendingBySupplier(){
   if(!el)return;
   const PRE=['Order','Approved','PO Raised'];
   const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const isDelayed=o=>{ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(o.dispatchDate||'').trim()); return m?today>new Date(+m[1],+m[2]-1,+m[3]):false; };
+  const isDelayed=o=>_isDispatchDelayedNow(o);   // past the effective (extended-or-auto) dispatch date, still pre-transit
   const map={};
   getVisibleOrders().forEach(o=>{
     if(!PRE.includes(o.status))return;
@@ -2684,12 +2684,10 @@ function renderDispatchPendingBySupplier(){
 }
 
 function _dispDelayInfo(o){
-  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(o.dispatchDate||'').trim());
-  if(!m) return null;
-  const disp=new Date(+m[1],+m[2]-1,+m[3]);
-  const n=new Date(); const today=new Date(n.getFullYear(),n.getMonth(),n.getDate());
-  if(today<=disp) return null;
-  return { date:`${m[3]}/${m[2]}/${m[1].slice(2)}`, overdue:Math.round((today-disp)/86400000) };
+  if(!_isDispatchDelayedNow(o)) return null;
+  const eff=_extendedDispatch(o)||_expectedDispatch(o);
+  if(!eff) return null;
+  return { date:_fmtDispatch(_dToStr(eff)), overdue:_dispOverdueDays(o), extended:!!_extendedDispatch(o) };
 }
 function openSupplierPopup(vendorName, group){
   // group: 'pending' (Order/Approved/PO Raised), 'after' (In Transit → Purchased),
@@ -4424,6 +4422,59 @@ function _dispatchLine(o){
   if(!o||!o.dispatchDate||!_canSeeDispatch()) return '';
   return `<div style="font-size:10px;color:#b45309;font-weight:700;margin-top:3px;white-space:nowrap">🚚 Dispatch: ${_fmtDispatch(o.dispatchDate)}</div>`;
 }
+
+/* ══════════ DISPATCH / TRANSPORTER DELAY TRACKING ══════════
+   Global defaults (days). Change these two numbers to re-tune for everyone. */
+const DISPATCH_DAYS = 3;   // supplier: expected dispatch = order date + this
+const TRANSIT_DAYS  = 4;   // transporter: expected arrival = dispatch date + this
+const _PRE_TRANSIT   = ['Order','Approved','PO Raised'];       // supplier still to dispatch
+const _WITH_TRANSPORTER = ['In Transit','At Transporter'];     // goods with the transporter
+
+function _dp(dstr){ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(dstr||'').trim()); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
+function _dToStr(d){ return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:''; }
+function _addDaysD(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function _midToday(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
+function _dayDiff(a,b){ return a&&b?Math.round((a-b)/86400000):null; }
+
+// Auto (original) expected supplier dispatch date = order date + DISPATCH_DAYS
+function _expectedDispatch(o){ const od=_dp(o&&o.orderDate); return od?_addDaysD(od,DISPATCH_DAYS):null; }
+// Manager's extended dispatch date (blank = none)
+function _extendedDispatch(o){ return _dp(o&&o.dispatchDate); }
+// The date the supplier actually dispatched (when marked In Transit)
+function _dispatchActual(o){ return _dp(o&&o.transitDetails&&o.transitDetails.at?String(o.transitDetails.at).slice(0,10):''); }
+// Reference "as of" date for a supplier-dispatch delay: today while still pre-transit,
+// else frozen at the actual dispatch date once the goods left.
+function _dispRef(o){ return _PRE_TRANSIT.includes(o.status)?_midToday():_dispatchActual(o); }
+function _dispatchDelayDays(o){ return _dayDiff(_dispRef(o), _expectedDispatch(o)); }               // vs original (col 1)
+function _dispatchDelayAfterExtendDays(o){ const ext=_extendedDispatch(o); return ext?_dayDiff(_dispRef(o), ext):null; } // vs extended (col 2)
+
+// Auto (original) expected transporter arrival = actual dispatch date + TRANSIT_DAYS
+function _expectedTransit(o){ const da=_dispatchActual(o); return da?_addDaysD(da,TRANSIT_DAYS):null; }
+function _extendedTransit(o){ return _dp(o&&o.transitExtendDate); }
+// Transporter delay only accrues while the goods are actually with the transporter.
+function _transitRef(o){ return _WITH_TRANSPORTER.includes(o.status)?_midToday():null; }
+function _transitDelayDays(o){ return _dayDiff(_transitRef(o), _expectedTransit(o)); }               // vs original (col 3)
+function _transitDelayAfterExtendDays(o){ const ext=_extendedTransit(o); return ext?_dayDiff(_transitRef(o), ext):null; } // vs extended (col 4)
+
+// Is the order currently overdue on supplier dispatch (uses the EXTENDED date if the
+// manager granted more time, else the auto expected date)? Drives the Delayed section.
+function _isDispatchDelayedNow(o){
+  if(!_PRE_TRANSIT.includes(o.status)) return false;
+  const eff=_extendedDispatch(o)||_expectedDispatch(o);
+  return eff?_midToday()>eff:false;
+}
+function _dispOverdueDays(o){
+  const eff=_extendedDispatch(o)||_expectedDispatch(o);
+  const d=_dayDiff(_midToday(), eff);
+  return d&&d>0?d:0;
+}
+// Compact delay badge: red = late, green = on time, blue = early, grey dash = n/a.
+function _delayBadge(days){
+  if(days==null) return '<span style="color:#cbd5e1;font-size:11px">—</span>';
+  if(days>0)  return `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:10px;white-space:nowrap">⚠ ${days}d late</span>`;
+  if(days===0)return `<span style="font-size:10px;font-weight:700;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:10px;white-space:nowrap">On time</span>`;
+  return `<span style="font-size:10px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:2px 8px;border-radius:10px;white-space:nowrap">${-days}d early</span>`;
+}
 function renderOrdersTable(){
   _ordersLoadedCount=0; // reset infinite scroll position on every fresh render
   renderOrderKpis();
@@ -4573,7 +4624,7 @@ function renderOrderTable(data, mini=false, ns=''){
   // sortable col definitions: [label, sortKey]  — labels go through _getLabel() for customisation
   const colDefs=mini
     ? [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],[_getLabel('col.eta'),'eta'],[_getLabel('col.status'),'status']]
-    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Supplier Dispatch Date','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
+    : [[_getLabel('col.id'),'id'],[_getLabel('col.customer'),'customer'],...(showVend?[[_getLabel('col.vendor'),'vendor']]:[]),[_getLabel('col.qty'),'qty'],[_getLabel('col.date'),'orderDate'],...(_canSeeDispatch()?[['Dispatch Delay',''],['Dispatch Delay (after extended)',''],['Transporter Delay',''],['Transporter Delay (after extended)','']]:[]),[_getLabel('col.eta')+' Bangalore','eta'],[_getLabel('col.status'),'status'],[' ','']];
   const thHtml=colDefs.map(([label,key])=>{
     if(!key||mini)return`<th>${label}</th>`;
     const active=ordersSortCol===key;
@@ -4632,10 +4683,27 @@ function renderOrderTable(data, mini=false, ns=''){
       ${o.biller?`<div style="font-size:10px;color:#64748b;margin-top:3px">Biller: ${o.biller}</div>`:''}
       ${o.salesExec?`<div style="font-size:10px;color:#64748b;margin-top:1px">Sales: ${o.salesExec}</div>`:''}
     </td>
-    ${(!mini&&_canSeeDispatch())?`<td style="white-space:nowrap">
-      <input type="date" value="${o.dispatchDate||''}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()"
-        style="font-size:11px;padding:5px 7px;border:1.5px solid ${o.dispatchDate?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff">
-    </td>`:''}
+    ${(!mini&&_canSeeDispatch())?(()=>{
+      const expD=_dToStr(_expectedDispatch(o)), expT=_dToStr(_expectedTransit(o));
+      const withTransp=_WITH_TRANSPORTER.includes(o.status);
+      const inpStyle=(hl)=>`font-size:11px;padding:4px 6px;border:1.5px solid ${hl?'#c7d2fe':'#e2e8f0'};border-radius:6px;color:#1e293b;cursor:pointer;background:#fff`;
+      return `
+    <td style="white-space:nowrap;text-align:center">
+      ${expD?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(expD)}</div>`:''}
+      ${_delayBadge(_dispatchDelayDays(o))}
+    </td>
+    <td style="white-space:nowrap;text-align:center">
+      <input type="date" value="${o.dispatchDate||expD}" onchange="_setDispatchDate(${o.id},this.value)" onclick="event.stopPropagation()" title="Extend the supplier dispatch date" style="${inpStyle(o.dispatchDate)}">
+      <div style="margin-top:3px">${_delayBadge(_dispatchDelayAfterExtendDays(o))}</div>
+    </td>
+    <td style="white-space:nowrap;text-align:center">
+      ${expT?`<div style="font-size:9px;color:#94a3b8;margin-bottom:3px">exp ${_fmtDispatch(expT)}</div>`:''}
+      ${_delayBadge(_transitDelayDays(o))}
+    </td>
+    <td style="white-space:nowrap;text-align:center">
+      ${withTransp?`<input type="date" value="${o.transitExtendDate||expT}" onchange="_setTransitExtendDate(${o.id},this.value)" onclick="event.stopPropagation()" title="Extend the transporter arrival date" style="${inpStyle(o.transitExtendDate)}">
+      <div style="margin-top:3px">${_delayBadge(_transitDelayAfterExtendDays(o))}</div>`:'<span style="color:#cbd5e1;font-size:11px">—</span>'}
+    </td>`;})():''}
     <td style="font-size:12px">${buildEtaCell(o)}</td>
     <td style="white-space:nowrap">
       ${buildStatusDropdown(o)}${buildNextStageBtn(o)}
@@ -4647,7 +4715,7 @@ function renderOrderTable(data, mini=false, ns=''){
     const latest=c[c.length-1];
     const preview=latest.text.length>100?latest.text.slice(0,100)+'…':latest.text;
     const by=latest.by||'';
-    const cols=showVend?6:5;
+    const cols=(showVend?6:5)+((!mini&&_canSeeDispatch())?4:0);
     return '<tr class="cmt-row" data-oid="'+o.id+'" style="'+(o.status==='Cancelled'?'background:#fff5f5;opacity:.8;':'')+'">'
       +'<td style="padding:0 0 7px 0"></td>'
       +'<td colspan="'+cols+'" style="padding:0 14px 7px;border-bottom:1px solid #f1f5f9">'
@@ -10263,7 +10331,17 @@ function _setDispatchDate(id, val){
   if(typeof persistOrders==='function') persistOrders();
   if(typeof buildSidebar==='function') buildSidebar();
   if(typeof _syncPendingTabBtns==='function') _syncPendingTabBtns();
-  if(typeof showToast==='function') showToast(val?'Dispatch date set — '+val:'Dispatch date cleared','success');
+  if(typeof showToast==='function') showToast(val?'Dispatch date extended — '+val:'Dispatch date cleared (back to auto)','success');
+  if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
+}
+function _setTransitExtendDate(id, val){
+  const o=orders.find(x=>x.id===id);
+  if(!o) return;
+  o.transitExtendDate=val||'';
+  if(typeof persistOrders==='function') persistOrders();
+  if(typeof buildSidebar==='function') buildSidebar();
+  if(typeof showToast==='function') showToast(val?'Transporter date extended — '+val:'Transporter date cleared (back to auto)','success');
+  if(typeof renderPage==='function'&&currentPage) renderPage(currentPage);
 }
 
 function renderVendorPO(){
