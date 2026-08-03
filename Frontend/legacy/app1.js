@@ -5384,8 +5384,11 @@ function confirmTransit(){
 
     if(shipQty<orderedQty){
       // ── Partial: ship shipQty, keep remainder as new PO Raised ──
+      // The balance MUST be a brand-new order: drop the server _id/updatedAt copied by
+      // the spread, otherwise it shares the shipped order's _id and its PUT overwrites
+      // the just-shipped In-Transit order on the server (the shipped qty never sticks).
       const remainQty=orderedQty-shipQty;
-      const remainder={...o, id:nextOrderId++, qty:remainQty, linkedToOrderId:o.id, trail:[], etaHistory:[]};
+      const remainder={...o, _id:undefined, updatedAt:'', id:nextOrderId++, qty:remainQty, status:prev, linkedToOrderId:o.id, transitDetails:{}, trail:[], etaHistory:[]};
       newOrders.push(remainder);
       o.qty=shipQty;
       splits++;
