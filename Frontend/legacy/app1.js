@@ -4545,8 +4545,9 @@ function _dayDiff(a,b){ return a&&b?Math.round((a-b)/86400000):null; }
 
 // Auto (original) expected supplier dispatch date = order date + DISPATCH_DAYS
 function _expectedDispatch(o){ const od=_dp(o&&o.orderDate); return od?_addDaysD(od,DISPATCH_DAYS):null; }
-// Manager's extended dispatch date (blank = none)
-function _extendedDispatch(o){ return _dp(o&&o.dispatchDate); }
+// Manager's extended dispatch date. Blank, or a value equal to the auto expected
+// date, both count as "no extension" (so an auto-filled date never fakes an extension).
+function _extendedDispatch(o){ const d=_dp(o&&o.dispatchDate); if(!d) return null; const exp=_expectedDispatch(o); return (exp&&d.getTime()===exp.getTime())?null:d; }
 // The date the supplier actually dispatched (when marked In Transit)
 function _dispatchActual(o){ return _dp(o&&o.transitDetails&&o.transitDetails.at?String(o.transitDetails.at).slice(0,10):''); }
 // Reference "as of" date for a supplier-dispatch delay: today while still pre-transit,
@@ -4557,7 +4558,7 @@ function _dispatchDelayAfterExtendDays(o){ const ext=_extendedDispatch(o); retur
 
 // Auto (original) expected transporter arrival = actual dispatch date + TRANSIT_DAYS
 function _expectedTransit(o){ const da=_dispatchActual(o); return da?_addDaysD(da,TRANSIT_DAYS):null; }
-function _extendedTransit(o){ return _dp(o&&o.transitExtendDate); }
+function _extendedTransit(o){ const d=_dp(o&&o.transitExtendDate); if(!d) return null; const exp=_expectedTransit(o); return (exp&&d.getTime()===exp.getTime())?null:d; }
 // Transporter delay only accrues while the goods are actually with the transporter.
 function _transitRef(o){ return _WITH_TRANSPORTER.includes(o.status)?_midToday():null; }
 function _transitDelayDays(o){ return _dayDiff(_transitRef(o), _expectedTransit(o)); }               // vs original (col 3)
@@ -6435,6 +6436,15 @@ function _toggleStockMode(on){
   }
 }
 
+// Auto supplier dispatch date = order date + DISPATCH_DAYS (as YYYY-MM-DD).
+function _autoDispatchStr(orderDateStr){ const od=_dp(orderDateStr); return od?_dToStr(_addDaysD(od,DISPATCH_DAYS)):''; }
+let _omDispatchTouched=false;  // true once a manager hand-edits the dispatch date, so changing the order date won't clobber it
+// Keep the modal's Supplier Dispatch Date auto-following the order date until it's hand-edited.
+function _omSyncDispatch(){
+  if(_omDispatchTouched) return;
+  const di=document.getElementById('omDispatchDate'), od=document.getElementById('omDate');
+  if(di&&od) di.value=_autoDispatchStr(od.value);
+}
 function openOrderModal(id=null){
   if(id){
     const o=orders.find(x=>x.id===id);
@@ -6457,7 +6467,8 @@ function openOrderModal(id=null){
   const _dispWrap=document.getElementById('omDispatchWrap');
   const _dispInp=document.getElementById('omDispatchDate');
   if(_dispWrap) _dispWrap.style.display=_canDispatch?'':'none';
-  if(_dispInp) _dispInp.value='';
+  _omDispatchTouched=false;
+  if(_dispInp) _dispInp.value=_canDispatch?_autoDispatchStr(document.getElementById('omDate').value):'';
   // Reset stock toggle
   const stockChk=document.getElementById('omIsStock');
   if(stockChk){stockChk.checked=false;_toggleStockMode(false);}
@@ -6524,7 +6535,8 @@ function openOrderModal(id=null){
     if(custNote&&donLineCount>1) custNote.textContent=`⚠️ This DON has ${donLineCount} lines — changing customer will update all of them`;
     document.getElementById('omVend').value=o.vendor;
     document.getElementById('omDate').value=o.orderDate;
-    if(_dispInp) _dispInp.value=o.dispatchDate||'';
+    // Show the manager's extended date if set (locked from auto-follow); otherwise show the auto date.
+    if(_dispInp){ if(o.dispatchDate){ _dispInp.value=o.dispatchDate; _omDispatchTouched=true; } else { _dispInp.value=_autoDispatchStr(o.orderDate); _omDispatchTouched=false; } }
     document.getElementById('omPo').value=o.poNum||'';
     document.getElementById('omRemark').value=''; // new comment goes here; existing thread shown in 💬 modal
     const _cmEdit=customers.find(c=>c.name===o.customer);
@@ -6578,9 +6590,12 @@ function saveOrder(){
   }
   const date=document.getElementById('omDate').value;
   if(!date){showToast('Please select an order date','error');return;}
-  // Dispatch Date — only management roles can set it; null = leave unchanged (non-management)
+  // Dispatch Date — only management roles can set it; null = leave unchanged (non-management).
+  // The field auto-fills to order date + default days; only persist it as an override when
+  // the manager set a DIFFERENT (later) date — otherwise keep it blank so it stays "auto".
   const _canDispatch=['superadmin','admin','manager'].includes(currentUser.role);
-  const dispatchDate=_canDispatch?(document.getElementById('omDispatchDate')?.value||''):null;
+  let dispatchDate=_canDispatch?(document.getElementById('omDispatchDate')?.value||''):null;
+  if(dispatchDate && dispatchDate===_autoDispatchStr(date)) dispatchDate='';
 
   // Validate: no product line can have a product without a quantity
   const badLine=_findIncompleteProductLine();
